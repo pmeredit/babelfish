@@ -1,0 +1,11 @@
+[package]
+name = "visitgen-test"
+version = "0.1.0"
+authors = ["Patrick Meredith <pmeredit@protonmail.com>"]
+edition = "2021"
+
+[dependencies]
+linked-hash-map = { workspace = true }
+mongosql-datastructures = { path = "../mongosql-datastructures" }
+visitgen = { path = "../visitgen" }
+lazy_static = { workspace = true }

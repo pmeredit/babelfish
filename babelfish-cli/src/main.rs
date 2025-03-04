@@ -1,0 +1,44 @@
+use ast::definitions::Stage;
+use clap::Parser;
+
+#[derive(Debug)]
+pub enum CliError {
+    Io(std::io::Error),
+    Bson(bson::de::Error),
+    Json(serde_json::Error),
+}
+
+impl From<std::io::Error> for CliError {
+    fn from(e: std::io::Error) -> Self {
+        CliError::Io(e)
+    }
+}
+
+impl From<bson::de::Error> for CliError {
+    fn from(e: bson::de::Error) -> Self {
+        CliError::Bson(e)
+    }
+}
+
+impl From<serde_json::Error> for CliError {
+    fn from(e: serde_json::Error) -> Self {
+        CliError::Json(e.into())
+    }
+}
+
+#[derive(Parser, Debug)]
+#[command(version, about, long_about=None)]
+struct Cli {
+    #[arg(index = 1, help = "pipeline bson file")]
+    pipeline_file: String,
+}
+
+fn main() -> Result<(), CliError> {
+    let args = Cli::parse();
+
+    let pipeline = std::fs::read_to_string(&args.pipeline_file)?;
+    let pipeline: Vec<Stage> = serde_json::from_str(&pipeline)?;
+    println!("{:?}", pipeline);
+
+    Ok(())
+}

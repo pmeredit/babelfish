@@ -1,0 +1,18 @@
+[package]
+name = "visitgen"
+version = "0.1.0"
+authors = ["Patrick Meredith <pmeredit@protonmail.com>", "Ryan Chipman <ryan@ryanchipman.com>"]
+edition = "2021"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { workspace = true, features = ["visit", "full"] }
+lazy_static = { workspace = true }
+proc-macro2 = "1"
+quote = { workspace = true }
+procout = {version = "0.1.13", features = ["procout", "formatted"]}
+
+[features]
+debug-visitor-output = []

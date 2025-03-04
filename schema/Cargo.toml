@@ -1,0 +1,32 @@
+[package]
+name = "schema"
+version = "0.0.0"
+authors = [
+    "Ryan Chipman <ryan@ryanchipman.com>",
+    "Patrick Meredith <pmeredit@protonmail.com>",
+    "Nathan Leniz <nathan.leniz@gmail.com>",
+]
+edition = "2021"
+
+[dependencies]
+ast = { path = "../ast" }
+bson = { workspace = true, features = ["chrono-0_4"] }
+chrono = { workspace = true }
+itertools = { workspace = true }
+lazy_static = { workspace = true }
+linked-hash-map = { workspace = true }
+rand = { workspace = true }
+regex = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true, features = ["unbounded_depth"] }
+serde_yaml = { workspace = true }
+serde_stacker = { workspace = true }
+enum-iterator = "0.7.0"
+tailcall = "1.0.1"
+thiserror = { workspace = true }
+variant_count = "1.1.0"
+visitgen = { path = "../visitgen" }
+mongosql-datastructures = { path = "../mongosql-datastructures" }
+edit-distance = "2.1.0"
+derive-new = "0.5.9"
+base64 = { workspace = true }

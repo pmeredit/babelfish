@@ -1,0 +1,8 @@
+/home/pmeredit/git/babelfish/target/debug/deps/libtap-8fbde0563ed12076.rmeta: /home/pmeredit/.cargo/registry/src/index.crates.io-6f17d22bba15001f/tap-1.0.1/src/lib.rs /home/pmeredit/.cargo/registry/src/index.crates.io-6f17d22bba15001f/tap-1.0.1/src/conv.rs /home/pmeredit/.cargo/registry/src/index.crates.io-6f17d22bba15001f/tap-1.0.1/src/pipe.rs /home/pmeredit/.cargo/registry/src/index.crates.io-6f17d22bba15001f/tap-1.0.1/src/tap.rs
+
+/home/pmeredit/git/babelfish/target/debug/deps/tap-8fbde0563ed12076.d: /home/pmeredit/.cargo/registry/src/index.crates.io-6f17d22bba15001f/tap-1.0.1/src/lib.rs /home/pmeredit/.cargo/registry/src/index.crates.io-6f17d22bba15001f/tap-1.0.1/src/conv.rs /home/pmeredit/.cargo/registry/src/index.crates.io-6f17d22bba15001f/tap-1.0.1/src/pipe.rs /home/pmeredit/.cargo/registry/src/index.crates.io-6f17d22bba15001f/tap-1.0.1/src/tap.rs
+
+/home/pmeredit/.cargo/registry/src/index.crates.io-6f17d22bba15001f/tap-1.0.1/src/lib.rs:
+/home/pmeredit/.cargo/registry/src/index.crates.io-6f17d22bba15001f/tap-1.0.1/src/conv.rs:
+/home/pmeredit/.cargo/registry/src/index.crates.io-6f17d22bba15001f/tap-1.0.1/src/pipe.rs:
+/home/pmeredit/.cargo/registry/src/index.crates.io-6f17d22bba15001f/tap-1.0.1/src/tap.rs:
