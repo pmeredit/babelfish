@@ -46,6 +46,59 @@ pub enum Schema {
     Any,
 }
 
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Default)]
+pub struct Namespace {
+    pub database: String,
+    pub collection: String,
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Default)]
+pub enum Relationship {
+    #[default]
+    One,
+    Many,
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Default)]
+pub enum ConstraintType {
+    #[default]
+    Reference,
+    Embedding,
+    Bucket,
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Default)]
+pub enum Consistency {
+    #[default]
+    Strong,
+    Weak,
+    Temporal,
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Default)]
+pub enum Direction {
+    #[default]
+    Parent,
+    Child,
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Default)]
+pub struct StorageConstraint {
+    pub constraint_type: ConstraintType,
+    pub consistency: Consistency,
+    pub direction: Direction,
+    pub target_path: String,
+    pub projection: Vec<String>,
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Default)]
+pub struct Reference {
+    pub namespace: Namespace,
+    pub field: String,
+    pub relationship: Relationship,
+    pub storage_constraint: StorageConstraint,
+}
+
 impl TryFrom<Schema> for bson::Document {
     type Error = Error;
     fn try_from(schema: Schema) -> std::result::Result<Self, Self::Error> {
@@ -244,6 +297,7 @@ impl Ord for JaccardIndex {
 #[derive(Eq, PartialOrd, Ord, Clone, Default)]
 pub struct Document {
     pub keys: BTreeMap<String, Schema>,
+    pub references: BTreeMap<String, Reference>,
     pub required: BTreeSet<String>,
     pub additional_properties: bool,
     // JaccardIndex is an optional field that is used to track the stability of the schema
