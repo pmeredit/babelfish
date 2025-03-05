@@ -6,7 +6,7 @@
             "db": "company",
             "collection": "Account",
             "primaryKey": "_id",
-            "schema": {
+            "jsonSchema": {
                 "bsonType": "object",
                 "properties": {
                     "_id": {
@@ -47,7 +47,7 @@
             "db": "company",
             "collection": "Customer",
             "primaryKey": "_id",
-            "schema": {
+            "jsonSchema": {
                 "bsonType": "object",
                 "properties": {
                     "_id": {
@@ -69,7 +69,7 @@
             "db": "company",
             "collection": "Order",
             "primaryKey": "_id",
-            "schema": {
+            "jsonSchema": {
                 "bsonType": "object",
                 "properties": {
                     "_id": {
@@ -113,7 +113,7 @@
             "db": "company",
             "collection": "Invoice",
             "primaryKey": "_id",
-            "schema": {
+            "jsonSchema": {
                 "bsonType": "object",
                 "properties": {
                     "_id": {
@@ -153,7 +153,7 @@
             "primaryKey": "_id",
             "db": "company",
             "collection": "Payment",
-            "schema": {
+            "jsonSchema": {
                 "bsonType": "object",
                 "properties": {
                     "_id": {
@@ -193,7 +193,7 @@
             "primaryKey": "_id",
             "db": "company",
             "collection": "Shipment",
-            "schema": {
+            "jsonSchema": {
                 "bsonType": "object",
                 "properties": {
                     "_id": {
@@ -233,7 +233,7 @@
             "primaryKey": "_id",
             "db": "company",
             "collection": "LineItem",
-            "schema": {
+            "jsonSchema": {
                 "bsonType": "object",
                 "properties": {
                     "_id": {
