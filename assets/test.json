@@ -1,9 +1,17 @@
 [
-    {"$project": {
-        "name": 1
+    {"$assemble": {
+        "erd": "./assets/schema.json",
+        "entity": "Account",
+        "project": ["customerName", "customerAddress"],
+        "subassemble": [{
+            "entity": "Customer",
+            "join": "inner",
+            "project": ["orderDate", "orderAmount"],
+            "filter": {"customerId": "$_id"}
+        }]
     }},
     {"$sort": {
-        "name": 1
+        "_id": 1
     }},
     {"$limit": 10},
     {"$skip": 0}
