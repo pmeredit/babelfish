@@ -2,6 +2,7 @@ use crate::{json_schema, map, set};
 use enum_iterator::IntoEnumIterator;
 use itertools::*;
 use lazy_static::lazy_static;
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -46,28 +47,26 @@ pub enum Schema {
     Any,
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Default)]
-pub struct Namespace {
-    pub database: String,
-    pub collection: String,
-}
-
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Default)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Default, Serialize, Deserialize)]
 pub enum Relationship {
     #[default]
+    #[serde(rename = "one-one")]
     One,
+    #[serde(rename = "many-one")]
     Many,
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Default)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum ConstraintType {
     #[default]
     Reference,
-    Embedding,
+    Embedded,
     Bucket,
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Default)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Consistency {
     #[default]
     Strong,
@@ -75,25 +74,28 @@ pub enum Consistency {
     Temporal,
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Default)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Direction {
     #[default]
     Parent,
     Child,
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Default)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StorageConstraint {
     pub constraint_type: ConstraintType,
     pub consistency: Consistency,
     pub direction: Direction,
     pub target_path: String,
-    pub projection: Vec<String>,
+    pub projection: Option<Vec<String>>,
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Default)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Reference {
-    pub namespace: Namespace,
+    pub entity: String,
     pub field: String,
     pub relationship: Relationship,
     pub storage_constraint: StorageConstraint,
@@ -361,6 +363,7 @@ impl TryFrom<json_schema::Schema> for Document {
                     ))
                 })
                 .collect::<Result<_, _>>()?,
+            references: v.references.unwrap_or_default(),
             required: v
                 .required
                 .unwrap_or_default()
@@ -389,6 +392,11 @@ impl TryFrom<Document> for json_schema::Schema {
                     })
                     .collect::<Result<_, _>>()?,
             ),
+            references: if v.references.is_empty() {
+                None
+            } else {
+                Some(v.references)
+            },
             required: if v.required.is_empty() {
                 None
             } else {
@@ -408,6 +416,7 @@ impl From<Atomic> for json_schema::Schema {
         json_schema::Schema {
             bson_type: Some(json_schema::BsonType::Single(v.into())),
             properties: None,
+            references: None,
             required: None,
             additional_properties: None,
             items: None,
@@ -453,6 +462,7 @@ impl TryFrom<Schema> for json_schema::Schema {
             Schema::Any => json_schema::Schema {
                 bson_type: None,
                 properties: None,
+                references: None,
                 required: None,
                 additional_properties: None,
                 items: None,
@@ -463,6 +473,7 @@ impl TryFrom<Schema> for json_schema::Schema {
             Schema::Unsat => json_schema::Schema {
                 bson_type: None,
                 properties: None,
+                references: None,
                 required: None,
                 additional_properties: None,
                 items: None,
@@ -475,6 +486,7 @@ impl TryFrom<Schema> for json_schema::Schema {
             Schema::AnyOf(ao) => json_schema::Schema {
                 bson_type: None,
                 properties: None,
+                references: None,
                 required: None,
                 additional_properties: None,
                 items: None,
@@ -496,6 +508,7 @@ impl TryFrom<Schema> for json_schema::Schema {
                         json_schema::BsonTypeName::Array,
                     )),
                     properties: None,
+                    references: None,
                     required: None,
                     additional_properties: None,
                     items: Some(json_schema::Items::Single(Box::new(
@@ -564,6 +577,7 @@ lazy_static! {
                 "type".to_string() => Schema::Atomic(Atomic::String),
                 "coordinates".to_string() => Schema::Array(Box::new(NUMERIC.clone())),
             },
+            references: map! {},
             required: set!["coordinates".to_string()],
             additional_properties: false,
             jaccard_index: None,
@@ -621,6 +635,7 @@ lazy_static! {
                 "type".to_string() => Schema::Atomic(Atomic::String),
                 "coordinates".to_string() => Schema::Array(Box::new(NUMERIC.clone())),
             },
+            references: map! {},
             required: set!["coordinates".to_string()],
             additional_properties: false,
             jaccard_index: None,
@@ -803,6 +818,7 @@ impl Schema {
                             }
                         })
                         .collect(),
+                    references: d.references.clone(),
                     required: d.required.difference(&missing_keys).cloned().collect(),
                     ..*d
                 })
@@ -1494,6 +1510,7 @@ impl TryFrom<json_schema::Schema> for Schema {
             json_schema::Schema {
                 bson_type: None,
                 properties: None,
+                references: None,
                 required: None,
                 additional_properties: None,
                 items: None,
@@ -1508,6 +1525,7 @@ impl TryFrom<json_schema::Schema> for Schema {
             json_schema::Schema {
                 bson_type,
                 properties,
+                references,
                 required,
                 additional_properties,
                 items,
@@ -1550,6 +1568,7 @@ impl TryFrom<json_schema::Schema> for Schema {
                     json_schema::BsonType::Single(json_schema::BsonTypeName::Object) => {
                         Ok(Schema::Document(Document::try_from(json_schema::Schema {
                             properties,
+                            references,
                             required,
                             additional_properties,
                             ..Default::default()
@@ -1581,6 +1600,7 @@ impl TryFrom<json_schema::Schema> for Schema {
                                             bson_type: Some(json_schema::BsonType::Single(
                                                 bson_type,
                                             )),
+                                            references: references.clone(),
                                             properties: properties.clone(),
                                             required: required.clone(),
                                             additional_properties,
@@ -1600,6 +1620,7 @@ impl TryFrom<json_schema::Schema> for Schema {
             json_schema::Schema {
                 bson_type: None,
                 properties: None,
+                references: None,
                 required: None,
                 additional_properties: None,
                 items: None,
@@ -1615,6 +1636,7 @@ impl TryFrom<json_schema::Schema> for Schema {
             json_schema::Schema {
                 bson_type: None,
                 properties: None,
+                references: None,
                 required: None,
                 additional_properties: None,
                 items: None,
@@ -1891,6 +1913,8 @@ impl Document {
                         .intersection(&other.required)
                         .cloned()
                         .collect(),
+                    // TODO: figure this out
+                    references: self.references.clone(),
                     additional_properties: self.additional_properties
                         || other.additional_properties,
                     jaccard_index: Some(jaccard_index),
@@ -1904,6 +1928,8 @@ impl Document {
                     .intersection(&other.required)
                     .cloned()
                     .collect(),
+                // TODO: figure this out
+                references: self.references.clone(),
                 additional_properties: self.additional_properties || other.additional_properties,
                 ..Default::default()
             }
@@ -1945,6 +1971,8 @@ impl Document {
         let jaccard_index = Document::get_jaccard_index(&self, &other);
         Document {
             keys: Document::union_keys(self.keys, other.keys),
+            // TODO: figure this out
+            references: self.references.clone(),
             required: self.required.into_iter().chain(other.required).collect(),
             additional_properties: self.additional_properties || other.additional_properties,
             jaccard_index,

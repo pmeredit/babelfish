@@ -99,7 +99,7 @@
                                 "consistency": "strong",
                                 "direction": "child",
                                 "targetPath": "account",
-                                "projection": ["contacct", "accountId"]
+                                "projection": ["contact", "accountId"]
                             }
                         ]
                     }

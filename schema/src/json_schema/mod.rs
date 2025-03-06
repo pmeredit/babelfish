@@ -4,8 +4,10 @@ mod test;
 use bson::{Bson, Document};
 use enum_iterator::IntoEnumIterator;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use thiserror::Error;
+
+use crate::Reference;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -36,6 +38,8 @@ pub struct Schema {
     pub any_of: Option<Vec<Schema>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub one_of: Option<Vec<Schema>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub references: Option<BTreeMap<String, Reference>>,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Debug)]
