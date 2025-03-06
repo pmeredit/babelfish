@@ -1,5 +1,6 @@
 use ast::definitions::Stage;
 use clap::Parser;
+use schema::Erd;
 
 #[derive(Debug)]
 pub enum CliError {
@@ -29,16 +30,24 @@ impl From<serde_json::Error> for CliError {
 #[derive(Parser, Debug)]
 #[command(version, about, long_about=None)]
 struct Cli {
-    #[arg(index = 1, help = "pipeline bson file")]
-    pipeline_file: String,
+    #[arg(short, long, help = "pipeline bson file")]
+    pipeline_file: Option<String>,
+    #[arg(short, long, help = "verbose mode")]
+    erd_file: Option<String>,
 }
 
 fn main() -> Result<(), CliError> {
     let args = Cli::parse();
 
-    let pipeline = std::fs::read_to_string(&args.pipeline_file)?;
-    let pipeline: Vec<Stage> = serde_json::from_str(&pipeline)?;
-    println!("{:?}", pipeline);
-
+    if let Some(erd_file) = &args.erd_file {
+        let erd = std::fs::read_to_string(erd_file)?;
+        let erd: Erd = serde_json::from_str(&erd)?;
+        println!("{:?}", erd);
+    }
+    if let Some(pipeline_file) = &args.pipeline_file {
+        let pipeline = std::fs::read_to_string(pipeline_file)?;
+        let pipeline: Vec<Stage> = serde_json::from_str(&pipeline)?;
+        println!("{:?}", pipeline);
+    }
     Ok(())
 }

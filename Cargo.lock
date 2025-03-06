@@ -128,6 +128,7 @@ dependencies = [
  "ast",
  "bson",
  "clap",
+ "schema",
  "serde_json",
 ]
 

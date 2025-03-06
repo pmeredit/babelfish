@@ -2,7 +2,7 @@ use crate::{json_schema, map, set};
 use enum_iterator::IntoEnumIterator;
 use itertools::*;
 use lazy_static::lazy_static;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashSet;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -33,6 +33,45 @@ pub enum Error {
     JsonSchemaFailure,
     #[error("bson failure: {0}")]
     BsonFailure(#[from] json_schema::Error),
+}
+
+#[derive(PartialEq, Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Erd {
+    pub schema_name: String,
+    pub entities: Vec<Entity>,
+}
+
+#[derive(PartialEq, Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Entity {
+    pub name: String,
+    pub db: String,
+    pub collection: String,
+    pub primary_key: String,
+    #[serde(deserialize_with = "deserialize_json_schema")]
+    #[serde(serialize_with = "serialize_json_schema")]
+    pub json_schema: Schema,
+}
+
+fn deserialize_json_schema<'de, D>(deserializer: D) -> Result<Schema, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let bson_schema =
+        bson::Document::deserialize(deserializer).map_err(serde::de::Error::custom)?;
+    let json_schema =
+        json_schema::Schema::from_document(&bson_schema).map_err(serde::de::Error::custom)?;
+    Schema::try_from(json_schema).map_err(serde::de::Error::custom)
+}
+
+fn serialize_json_schema<S>(schema: &Schema, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    let bson_schema =
+        bson::Document::try_from(schema.clone()).map_err(serde::ser::Error::custom)?;
+    bson_schema.serialize(serializer)
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Default)]
@@ -97,8 +136,8 @@ pub struct StorageConstraint {
 pub struct Reference {
     pub entity: String,
     pub field: String,
-    pub relationship: Relationship,
-    pub storage_constraint: StorageConstraint,
+    pub relationship_type: Relationship,
+    pub storage_constraints: Vec<StorageConstraint>,
 }
 
 impl TryFrom<Schema> for bson::Document {
