@@ -1314,7 +1314,7 @@ mod stage_test {
                             args: vec![Expression::Literal(LiteralValue::Int32(1))],
                         })),
                         window: Some(Window {
-                            documents: Some([Bson::Int64(-1), Bson::Int32(1)]),
+                            documents: Some(vec![Bson::Int64(-1), Bson::Int32(1)]),
                             range: None,
                             unit: None,
                         }),
@@ -1330,7 +1330,7 @@ mod stage_test {
                         window_func: Box::new(Expression::TaggedOperator(TaggedOperator::DenseRank(EmptyDoc {}))),
                         window: Some(Window {
                             documents: None,
-                            range: Some([Bson::Int64(-10), Bson::Int32(10)]),
+                            range: Some(vec![Bson::Int64(-10), Bson::Int32(10)]),
                             unit: Some("seconds".to_string()),
                         }),
                     },
@@ -1376,7 +1376,7 @@ mod stage_test {
                             args: vec![Expression::Literal(LiteralValue::Int32(1))],
                         })),
                         window: Some(Window {
-                            documents: Some([Bson::Int32(1), Bson::Int32(2)]),
+                            documents: Some(vec![Bson::Int32(1), Bson::Int32(2)]),
                             range: None,
                             unit: Some("seconds".to_string()),
                         })
@@ -1632,7 +1632,10 @@ mod stage_test {
                 partition_by_fields: None,
                 range: DensifyRange {
                     step: Bson::Int32(1),
-                    bounds: DensifyRangeBounds::Array(Box::new([Bson::Int32(1), Bson::Int32(2)])),
+                    bounds: DensifyRangeBounds::Array(Box::new(vec![
+                        Bson::Int32(1),
+                        Bson::Int32(2)
+                    ])),
                     unit: None,
                 },
             }),
@@ -1813,8 +1816,8 @@ mod stage_test {
                 max_distance: None,
                 min_distance: None,
                 near: GeoNearPoint::GeoJSON(GeoJSON {
-                    r#type: "Point".to_string(),
-                    coordinates: [Bson::Double(-73.856077), Bson::Double(40.848447)],
+                    _type: "Point".to_string(),
+                    coordinates: vec![Bson::Double(-73.856077), Bson::Double(40.848447)],
                 }),
                 query: None,
                 spherical: None,
@@ -1837,7 +1840,7 @@ mod stage_test {
                 key: Some("idx".to_string()),
                 max_distance: Some(Bson::Int32(100)),
                 min_distance: Some(Bson::Int32(10)),
-                near: GeoNearPoint::Legacy([Bson::Double(-51.634855), Bson::Double(51.959558)]),
+                near: GeoNearPoint::Legacy(vec![Bson::Double(-51.634855), Bson::Double(51.959558)]),
                 query: Some(MatchExpression::Field(MatchField {
                     field: Ref::FieldRef("x".to_string()),
                     ops: map! {
@@ -3571,9 +3574,9 @@ mod expression_test {
             test_serde_expr!(
                 tagged_input,
                 expected = Expression::TaggedOperator(TaggedOperator::Cond(Cond {
-                    r#if: Box::new(Expression::Literal(LiteralValue::Boolean(true))),
+                    _if: Box::new(Expression::Literal(LiteralValue::Boolean(true))),
                     then: Box::new(Expression::Literal(LiteralValue::Int32(1))),
-                    r#else: Box::new(Expression::Literal(LiteralValue::Null)),
+                    _else: Box::new(Expression::Literal(LiteralValue::Null)),
                 })),
                 input = r#"expr: {"$cond": {
                                     "if": true,
@@ -3585,9 +3588,9 @@ mod expression_test {
             test_serde_expr!(
                 untagged_input,
                 expected = Expression::TaggedOperator(TaggedOperator::Cond(Cond {
-                    r#if: Box::new(Expression::Literal(LiteralValue::Boolean(false))),
+                    _if: Box::new(Expression::Literal(LiteralValue::Boolean(false))),
                     then: Box::new(Expression::Literal(LiteralValue::Int32(0))),
-                    r#else: Box::new(Expression::Literal(LiteralValue::String("x".to_string()))),
+                    _else: Box::new(Expression::Literal(LiteralValue::String("x".to_string()))),
                 })),
                 input = r#"expr: {"$cond": [false, 0, "x"]}"#
             );

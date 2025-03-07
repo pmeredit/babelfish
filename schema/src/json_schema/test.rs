@@ -170,6 +170,7 @@ validate_json_schema!(
             ..Default::default()
         }]),
         max_items: None,
+        ..Default::default()
     },
     input = r#"{"bsonType":["object","array"],"properties":{"a":{"bsonType":"int"}},"required":["a"],"additionalProperties":true,"items":{"bsonType":"int"},"anyOf":[{"bsonType":"int"}],"oneOf":[{"bsonType":"int"}]}"#,
 );

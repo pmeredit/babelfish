@@ -20,6 +20,7 @@ use std::collections::BTreeMap;
 // The schema-derivation module is a sibling to this module, and is used by the mongodb-schema-
 // manager.
 
+visitgen::generate_visitors! {
 /// Stage represents an aggregation pipeline stage.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Stage {
@@ -589,9 +590,9 @@ pub struct SetWindowFieldsOutput {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Window {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub documents: Option<[Bson; 2]>,
+    pub documents: Option<Vec<Bson>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub range: Option<[Bson; 2]>,
+    pub range: Option<Vec<Bson>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unit: Option<String>,
 }
@@ -637,7 +638,7 @@ pub enum DensifyRangeBounds {
     Full,
     Partition,
     #[serde(untagged)]
-    Array(Box<[Bson; 2]>),
+    Array(Box<Vec<Bson>>),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -691,13 +692,14 @@ pub struct GeoNear {
 #[serde(untagged)]
 pub enum GeoNearPoint {
     GeoJSON(GeoJSON),
-    Legacy([Bson; 2]),
+    Legacy(Vec<Bson>),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct GeoJSON {
-    pub r#type: String,
-    pub coordinates: [Bson; 2],
+    #[serde(rename = "type")]
+    pub _type: String,
+    pub coordinates: Vec<Bson>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1711,9 +1713,11 @@ pub struct Shift {
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Cond {
-    pub r#if: Box<Expression>,
+    #[serde(rename = "if")]
+    pub _if: Box<Expression>,
     pub then: Box<Expression>,
-    pub r#else: Box<Expression>,
+    #[serde(rename = "else")]
+    pub _else: Box<Expression>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1781,4 +1785,5 @@ impl Stage {
             Stage::AtlasSearchStage(_) => "<Atlas search stage>",
         }
     }
+}
 }

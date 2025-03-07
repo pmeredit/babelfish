@@ -991,10 +991,11 @@ impl<'de> Deserialize<'de> for Cond {
         // into a Cond struct.
         let expression = Expression::deserialize(deserializer)?;
         #[allow(unused_assignments)]
-        let (mut r#if, mut then, mut r#else) = (None, None, None);
+        let (mut _if, mut then, mut _else) = (None, None, None);
         match expression {
             Expression::Document(mut d) => {
-                (r#if, then, r#else) = (d.remove("if"), d.remove("then"), d.remove("else"));
+                dbg!(&d);
+                (_if, then, _else) = (d.remove("if"), d.remove("then"), d.remove("else"));
                 if !d.is_empty() {
                     return Err(serde_err::custom("too many arguments for $cond document"));
                 }
@@ -1006,16 +1007,16 @@ impl<'de> Deserialize<'de> for Cond {
                     ));
                 }
                 // pop() removes the last element, so we assign these in order "else", "then", "if".
-                (r#else, then, r#if) = (a.pop(), a.pop(), a.pop());
+                (_else, then, _if) = (a.pop(), a.pop(), a.pop());
             }
             _ => return Err(serde_err::custom("unexpected value for $cond operator")),
         }
 
-        if let (Some(r#if), Some(then), Some(r#else)) = (r#if, then, r#else) {
+        if let (Some(_if), Some(then), Some(_else)) = (_if, then, _else) {
             Ok(Cond {
-                r#if: Box::new(r#if),
+                _if: Box::new(_if),
                 then: Box::new(then),
-                r#else: Box::new(r#else),
+                _else: Box::new(_else),
             })
         } else {
             Err(serde_err::custom("incorrect arguments to $cond document"))

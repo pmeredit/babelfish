@@ -72,8 +72,14 @@ pub fn get_relevant_type_info(ty: &Type) -> (String, Option<&Punctuated<GenericA
             };
             (ty_name, args)
         }
+        Type::Array(a) => {
+            panic!("currently we don't support arrays: {:?}", a);
+        }
         _ => {
-            panic!("currently we only support Type::Path based Types")
+            panic!(
+                "currently we only support Type::Path based Types, not {:?}",
+                ty
+            );
         }
     }
 }
