@@ -2,6 +2,7 @@ use crate::custom_serde::{deserialize_mql_operator, serialize_mql_operator};
 use bson::Bson;
 use linked_hash_map::LinkedHashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 // This module contains an aggregation pipeline syntax tree that implements
 // serde::Deserialize. This allows us to deserialize aggregation pipelines from
@@ -22,6 +23,10 @@ use serde::{Deserialize, Serialize};
 /// Stage represents an aggregation pipeline stage.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Stage {
+    #[serde(rename = "$addFields", alias = "$set")]
+    AddFields(LinkedHashMap<String, Expression>),
+    #[serde(rename = "$assemble")]
+    Assemble(Assemble),
     #[serde(rename = "$collection")]
     Collection(Collection),
     #[serde(rename = "$documents")]
@@ -50,8 +55,6 @@ pub enum Stage {
     Unwind(Unwind),
     #[serde(rename = "$lookup")]
     Lookup(Lookup),
-    #[serde(rename = "$addFields", alias = "$set")]
-    AddFields(LinkedHashMap<String, Expression>),
     #[serde(rename = "$redact")]
     Redact(Box<Expression>),
     #[serde(rename = "$unset")]
@@ -82,6 +85,36 @@ pub enum Stage {
     GraphLookup(GraphLookup),
     #[serde(untagged)]
     AtlasSearchStage(AtlasSearchStage),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Assemble {
+    // Path to erd, for now
+    pub erd: String,
+    pub entity: String,
+    pub project: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub filter: Option<BTreeMap<String, Expression>>,
+    pub subassemble: Vec<Subassemble>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Subassemble {
+    pub entity: String,
+    pub project: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub filter: Option<BTreeMap<String, Expression>>,
+    pub join: Option<AssembleJoinType>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subassemble: Option<Vec<Subassemble>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum AssembleJoinType {
+    #[serde(rename = "inner")]
+    Inner,
+    #[serde(rename = "left")]
+    Left,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1717,6 +1750,7 @@ impl Stage {
     pub fn name(&self) -> &str {
         match self {
             Stage::Collection(_) => "<collection>",
+            Stage::Assemble(_) => "$assemble",
             Stage::Documents(_) => "$documents",
             Stage::Project(_) => "$project",
             Stage::ReplaceWith(_) => "$replaceWith",
