@@ -30,6 +30,10 @@ pub struct Pipeline {
 /// Stage represents an aggregation pipeline stage.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Stage {
+    // This is used so that we can visit Stages that rewrite to multiple Stages.
+    #[serde(skip)]
+    SubPipeline(Vec<Stage>),
+
     #[serde(rename = "$addFields", alias = "$set")]
     AddFields(LinkedHashMap<String, Expression>),
     #[serde(rename = "$assemble")]
@@ -1759,6 +1763,7 @@ impl VecOrSingleExpr {
 impl Stage {
     pub fn name(&self) -> &str {
         match self {
+            Stage::SubPipeline(_) => "$subPipeline",
             Stage::Collection(_) => "<collection>",
             Stage::Assemble(_) => "$assemble",
             Stage::Documents(_) => "$documents",
