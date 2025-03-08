@@ -1,10 +1,10 @@
 [
     {"$assemble": {
         "erd": "./assets/schema1.json",
-        "entity": "Account",
+        "entity": "Customer",
         "project": ["customerName", "customerAddress"],
         "subassemble": [{
-            "entity": "Customer",
+            "entity": "Account",
             "join": "inner",
             "project": ["orderDate", "orderAmount"],
             "filter": {"customerId": "$_id"}
