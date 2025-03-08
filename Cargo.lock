@@ -118,6 +118,7 @@ name = "babelfish"
 version = "0.1.0"
 dependencies = [
  "ast",
+ "schema",
  "serde",
  "serde_json",
 ]

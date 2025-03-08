@@ -48,7 +48,8 @@ fn main() -> Result<(), CliError> {
         let pipeline = std::fs::read_to_string(pipeline_file)?;
         let pipeline: Pipeline = serde_json::from_str(&pipeline)?;
         let pipeline = babelfish::assemble_rewrite::AssembleRewrite.visit_pipeline(pipeline);
-        println!("{:?}", pipeline);
+        let pipeline_json = serde_json::to_string_pretty(&pipeline)?;
+        println!("{}", pipeline_json);
     }
     Ok(())
 }

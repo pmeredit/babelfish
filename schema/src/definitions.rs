@@ -86,7 +86,16 @@ pub enum Schema {
     Any,
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Default, Serialize, Deserialize)]
+impl Schema {
+    pub fn references(&self) -> Option<&BTreeMap<String, Reference>> {
+        match self {
+            Schema::Document(d) => Some(&d.references),
+            _ => None,
+        }
+    }
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub enum Relationship {
     #[default]
     #[serde(rename = "one-one")]
@@ -95,7 +104,7 @@ pub enum Relationship {
     Many,
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ConstraintType {
     #[default]
@@ -104,7 +113,7 @@ pub enum ConstraintType {
     Bucket,
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Consistency {
     #[default]
@@ -113,7 +122,7 @@ pub enum Consistency {
     Temporal,
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Direction {
     #[default]
