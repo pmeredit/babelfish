@@ -1,4 +1,4 @@
-use ast::definitions::Stage;
+use ast::definitions::{visitor::Visitor, Pipeline};
 use clap::Parser;
 use schema::Erd;
 
@@ -46,7 +46,8 @@ fn main() -> Result<(), CliError> {
     }
     if let Some(pipeline_file) = &args.pipeline_file {
         let pipeline = std::fs::read_to_string(pipeline_file)?;
-        let pipeline: Vec<Stage> = serde_json::from_str(&pipeline)?;
+        let pipeline: Pipeline = serde_json::from_str(&pipeline)?;
+        let pipeline = babelfish::assemble_rewrite::AssembleRewrite.visit_pipeline(pipeline);
         println!("{:?}", pipeline);
     }
     Ok(())

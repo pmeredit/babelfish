@@ -21,6 +21,12 @@ use std::collections::BTreeMap;
 // manager.
 
 visitgen::generate_visitors! {
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Pipeline {
+    pub pipeline: Vec<Stage>,
+}
+
 /// Stage represents an aggregation pipeline stage.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Stage {
