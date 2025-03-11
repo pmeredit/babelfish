@@ -120,7 +120,7 @@ pub struct Subassemble {
     pub subassemble: Option<Vec<Subassemble>>,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum AssembleJoinType {
     #[serde(rename = "inner")]
     Inner,
