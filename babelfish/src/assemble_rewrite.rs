@@ -9,6 +9,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error("Could not find ERD path: {0}")]
+    CouldNotFindErd(String),
     #[error("Could not parse ERD: {0}")]
     CouldNotParseErd(#[from] serde_json::Error),
     #[error("Entity: {0} missing from ERD")]
@@ -17,6 +19,10 @@ pub enum Error {
     MissingFilterInSubassemble(String),
     #[error("Missing key in filter, key: {0}, filter: {1}")]
     MissingKeyInFilter(String, String),
+    #[error("Reference not found in Subassemble")]
+    ReferenceNotFoundInSubassemble,
+    #[error("Reference key not found: {0}")]
+    ReferenceKeyNotFound(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -106,11 +112,15 @@ fn handle_subassemble(
     entities: &BTreeMap<String, Entity>,
 ) -> Result<Vec<Stage>> {
     let mut output = Vec::new();
-    let subassemble_entity = entities.get(&subassemble.entity).unwrap();
+    let subassemble_entity = entities
+        .get(&subassemble.entity)
+        .ok_or(Error::EntityMissingFromErd(subassemble.entity.to_string()))?;
     let filter_keys = subassemble
         .filter
         .clone()
-        .unwrap()
+        .ok_or(Error::MissingFilterInSubassemble(
+            serde_json::to_string_pretty(&subassemble).unwrap(),
+        ))?
         .keys()
         .cloned()
         .collect::<Vec<_>>();
@@ -120,9 +130,9 @@ fn handle_subassemble(
         let reference = subassemble_entity
             .json_schema
             .references()
-            .unwrap()
+            .ok_or(Error::ReferenceNotFoundInSubassemble)?
             .get(&key)
-            .unwrap();
+            .ok_or(Error::ReferenceKeyNotFound(key.clone()))?;
         match reference.storage_constraints[0].constraint_type {
             ConstraintType::Embedded => {
                 output.extend(handle_embedded_constraint(&reference, &subassemble));
@@ -144,14 +154,31 @@ fn handle_subassemble(
 impl Visitor for AssembleRewrite {
     // visit_stage is here to handle Assemble stages and replace them with SubPipelines
     fn visit_stage(&mut self, stage: Stage) -> Stage {
+        if self.error.is_some() {
+            return Stage::SubPipeline(Vec::new());
+        }
+        macro_rules! handle_error {
+            ($e:expr) => {
+                match $e {
+                    Err(e) => {
+                        self.error = Some(e);
+                        return Stage::SubPipeline(Vec::new());
+                    }
+                    Ok(v) => v,
+                }
+            };
+        }
         match stage {
             Stage::Assemble(a) => {
-                let erd = std::fs::read_to_string(&a.erd).unwrap();
-                // TODO: handle errors gracefully
-                let erd: Erd = serde_json::from_str(&erd).unwrap();
+                let erd_json = handle_error!(std::fs::read_to_string(&a.erd)
+                    .map_err(|_| Error::CouldNotFindErd(a.erd.clone())));
+                let erd: Erd =
+                    handle_error!(serde_json::from_str(&erd_json).map_err(Error::CouldNotParseErd));
                 let entities = erd.entities;
-                // TODO use input entity for checking
-                let _input_entity = entities.get(&a.entity).unwrap();
+                // TODO: use input entity for checking
+                let _input_entity = handle_error!(entities
+                    .get(&a.entity)
+                    .ok_or(Error::EntityMissingFromErd(a.entity.clone())));
                 let mut output = Vec::new();
                 for subassemble in a.subassemble.into_iter() {
                     let ret = handle_subassemble(subassemble, &entities);
