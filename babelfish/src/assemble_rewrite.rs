@@ -1,10 +1,10 @@
-use std::collections::BTreeMap;
-
 use ast::definitions::{
     visitor::Visitor, AssembleJoinType, EqualityLookup, Expression, Lookup, LookupFrom, Pipeline,
-    Ref, Stage, Subassemble, Unwind, UnwindExpr,
+    ProjectItem, ProjectStage, Ref, Stage, Subassemble, Unwind, UnwindExpr,
 };
+use linked_hash_map::LinkedHashMap;
 use schema::{ConstraintType, Entity, Erd, Relationship};
+use std::collections::BTreeMap;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -108,6 +108,7 @@ fn handle_reference_constraint(
 }
 
 fn handle_subassemble(
+    project_keys: &[String],
     subassemble: Subassemble,
     entities: &BTreeMap<String, Entity>,
 ) -> Result<Vec<Stage>> {
@@ -145,10 +146,35 @@ fn handle_subassemble(
                     entities,
                 )?);
             }
-            _ => panic!("Unsupported constraint type for now"),
+            _ => todo!("Unsupported constraint type for now"),
         }
     }
+    // handle project, eventually we'll need to union all the subassembles
+    output.push(handle_project({
+        let mut project = subassemble.project;
+        project.extend(project_keys.iter().cloned());
+        project
+    }));
     Ok(output)
+}
+
+fn handle_project(project: Vec<String>) -> Stage {
+    let mut found_id = false;
+    let mut project_items = project
+        .into_iter()
+        .map(|projection| {
+            if projection == "_id" {
+                found_id = true
+            };
+            (projection, ProjectItem::Inclusion)
+        })
+        .collect::<LinkedHashMap<_, _>>();
+    if !found_id {
+        project_items.insert("_id".to_string(), ProjectItem::Exclusion);
+    }
+    Stage::Project(ProjectStage {
+        items: project_items,
+    })
 }
 
 impl Visitor for AssembleRewrite {
@@ -181,7 +207,7 @@ impl Visitor for AssembleRewrite {
                     .ok_or(Error::EntityMissingFromErd(a.entity.clone())));
                 let mut output = Vec::new();
                 for subassemble in a.subassemble.into_iter() {
-                    let ret = handle_subassemble(subassemble, &entities);
+                    let ret = handle_subassemble(a.project.as_ref(), subassemble, &entities);
                     if let Err(e) = ret {
                         self.error = Some(e);
                         return Stage::SubPipeline(Vec::new());
