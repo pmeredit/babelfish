@@ -12,26 +12,20 @@ fn handle_embedded_constraint(
     reference: &schema::Reference,
     subassemble: &Subassemble,
 ) -> Vec<Stage> {
-    match (
-        reference.relationship_type,
-        subassemble.join.clone().unwrap(),
-    ) {
-        (Relationship::Many, AssembleJoinType::Inner) => {
-            vec![Stage::Unwind(Unwind::FieldPath(Expression::Ref(
-                Ref::FieldRef(reference.storage_constraints[0].target_path.clone()),
-            )))]
-        }
-        (Relationship::Many, AssembleJoinType::Left) => {
+    match reference.relationship_type {
+        Relationship::Many => {
             vec![Stage::Unwind(Unwind::Document(UnwindExpr {
                 path: Expression::Ref(Ref::FieldRef(
                     reference.storage_constraints[0].target_path.clone(),
                 ))
                 .into(),
-                preserve_null_and_empty_arrays: Some(true),
+                preserve_null_and_empty_arrays: Some(
+                    subassemble.join == Some(AssembleJoinType::Left),
+                ),
                 include_array_index: None,
             }))]
         }
-        (Relationship::One, _) => {
+        Relationship::One => {
             vec![]
         }
     }
