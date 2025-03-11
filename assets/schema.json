@@ -1,8 +1,8 @@
 {
     "schemaName": "company_erd",
-    "entities": [
+    "entities": {
+        "Account":
         {
-            "name": "Account",
             "db": "company",
             "collection": "Account",
             "primaryKey": "_id",
@@ -42,8 +42,8 @@
                 "additionalProperties": false
             }
         },
+        "Customer":
         {
-            "name": "Customer",
             "db": "company",
             "collection": "Customer",
             "primaryKey": "_id",
@@ -64,8 +64,8 @@
                 "additionalProperties": false
             }
         },
+        "Order":
         {
-            "name": "Order",
             "db": "company",
             "collection": "Order",
             "primaryKey": "_id",
@@ -108,8 +108,8 @@
                 "additionalProperties": false
             }
         },
+        "Invoice":
         {
-            "name": "Invoice",
             "db": "company",
             "collection": "Invoice",
             "primaryKey": "_id",
@@ -148,8 +148,8 @@
                 "additionalProperties": false
             }
         },
+        "Payment":
         {
-            "name": "Payment",
             "primaryKey": "_id",
             "db": "company",
             "collection": "Payment",
@@ -188,8 +188,8 @@
                 "additionalProperties": false
             }
         },
+        "Shipment":
         {
-            "name": "Shipment",
             "primaryKey": "_id",
             "db": "company",
             "collection": "Shipment",
@@ -228,8 +228,8 @@
                 "additionalProperties": false
             }
         },
+        "LineItem":
         {
-            "name": "LineItem",
             "primaryKey": "_id",
             "db": "company",
             "collection": "LineItem",
@@ -271,5 +271,5 @@
                 "additionalProperties": false
             }
         }
-    ]
+    }
 }

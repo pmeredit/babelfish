@@ -39,13 +39,12 @@ pub enum Error {
 #[serde(rename_all = "camelCase")]
 pub struct Erd {
     pub schema_name: String,
-    pub entities: Vec<Entity>,
+    pub entities: BTreeMap<String, Entity>,
 }
 
 #[derive(PartialEq, Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Entity {
-    pub name: String,
     pub db: String,
     pub collection: String,
     pub primary_key: String,
