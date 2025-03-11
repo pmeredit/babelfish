@@ -1,4 +1,5 @@
-use ast::definitions::{visitor::Visitor, Pipeline};
+use ast::definitions::Pipeline;
+use babelfish::*;
 use clap::Parser;
 use schema::Erd;
 
@@ -7,6 +8,7 @@ pub enum CliError {
     Io(std::io::Error),
     Bson(bson::de::Error),
     Json(serde_json::Error),
+    Babelfish(babelfish::assemble_rewrite::Error),
 }
 
 impl From<std::io::Error> for CliError {
@@ -24,6 +26,12 @@ impl From<bson::de::Error> for CliError {
 impl From<serde_json::Error> for CliError {
     fn from(e: serde_json::Error) -> Self {
         CliError::Json(e.into())
+    }
+}
+
+impl From<babelfish::assemble_rewrite::Error> for CliError {
+    fn from(e: babelfish::assemble_rewrite::Error) -> Self {
+        CliError::Babelfish(e)
     }
 }
 
@@ -47,7 +55,7 @@ fn main() -> Result<(), CliError> {
     if let Some(pipeline_file) = &args.pipeline_file {
         let pipeline = std::fs::read_to_string(pipeline_file)?;
         let pipeline: Pipeline = serde_json::from_str(&pipeline)?;
-        let pipeline = babelfish::assemble_rewrite::AssembleRewrite.visit_pipeline(pipeline);
+        let pipeline = assemble_rewrite::rewrite_pipeline(pipeline)?;
         let pipeline_json = serde_json::to_string_pretty(&pipeline)?;
         println!("{}", pipeline_json);
     }
