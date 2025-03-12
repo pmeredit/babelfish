@@ -10,9 +10,6 @@
             "filter": {"customerId": "$_id"}
         }]
     }},
-    {"$sort": {
-        "customerName": 1
-    }},
     {"$limit": 10},
     {"$skip": 0}
 ]

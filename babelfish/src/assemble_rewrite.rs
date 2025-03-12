@@ -1,9 +1,12 @@
-use ast::definitions::{
-    visitor::Visitor, AssembleJoinType, EqualityLookup, Expression, Lookup, LookupFrom, Pipeline,
-    ProjectItem, ProjectStage, Ref, Stage, Subassemble, Unwind, UnwindExpr,
+use ast::{
+    definitions::{
+        visitor::Visitor, AssembleJoinType, EqualityLookup, Expression, Lookup, LookupFrom,
+        Pipeline, ProjectItem, ProjectStage, Ref, Stage, Subassemble, Unwind, UnwindExpr,
+    },
+    map,
 };
 use linked_hash_map::LinkedHashMap;
-use schema::{ConstraintType, Entity, Erd, Relationship};
+use schema::{ConstraintType, Direction, Entity, Erd, Relationship};
 use std::collections::BTreeMap;
 use thiserror::Error;
 
@@ -65,6 +68,7 @@ fn handle_embedded_constraint(
 }
 
 fn handle_reference_constraint(
+    entity_name: &str,
     key: &str,
     reference: &schema::Reference,
     subassemble: &Subassemble,
@@ -87,20 +91,20 @@ fn handle_reference_constraint(
         // now
         todo!("Expected field ref in subassemble filter");
     };
+    let from_name = if reference.storage_constraints[0].direction == Direction::Child {
+        entities.get(entity_name).unwrap().collection.clone()
+    } else {
+        entities.get(&reference.entity).unwrap().collection.clone()
+    };
     Ok(vec![
         Stage::Lookup(Lookup::Equality(EqualityLookup {
-            from: LookupFrom::Collection(
-                entities.get(&reference.entity).unwrap().collection.clone(),
-            ),
+            from: LookupFrom::Collection(from_name.clone()),
             foreign_field,
             local_field: reference.storage_constraints[0].target_path.clone(),
-            as_var: reference.storage_constraints[0].target_path.clone(),
+            as_var: from_name.clone(),
         })),
         Stage::Unwind(Unwind::Document(UnwindExpr {
-            path: Expression::Ref(Ref::FieldRef(
-                reference.storage_constraints[0].target_path.clone(),
-            ))
-            .into(),
+            path: Expression::Ref(Ref::FieldRef(from_name)).into(),
             preserve_null_and_empty_arrays: Some(subassemble.join == Some(AssembleJoinType::Left)),
             include_array_index: None,
         })),
@@ -140,6 +144,7 @@ fn handle_subassemble(
             }
             ConstraintType::Reference => {
                 output.extend(handle_reference_constraint(
+                    subassemble.entity.as_str(),
                     key.as_str(),
                     &reference,
                     &subassemble,
@@ -205,7 +210,11 @@ impl Visitor for AssembleRewrite {
                 let _input_entity = handle_error!(entities
                     .get(&a.entity)
                     .ok_or(Error::EntityMissingFromErd(a.entity.clone())));
-                let mut output = Vec::new();
+                let mut output = vec![Stage::Project(ProjectStage {
+                    items: map! {
+                        a.entity.clone() => ProjectItem::Assignment(Expression::Ref(Ref::VariableRef("ROOT".to_string()))),
+                    },
+                })];
                 for subassemble in a.subassemble.into_iter() {
                     let ret = handle_subassemble(a.project.as_ref(), subassemble, &entities);
                     if let Err(e) = ret {
