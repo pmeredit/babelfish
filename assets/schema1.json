@@ -32,7 +32,6 @@
                                 "constraintType": "reference",
                                 "consistency": "weak",
                                 "direction": "child",
-                                "targetPath": "contact",
                                 "projection": ["customerName", "customerAddress"]
                             }
                         ]

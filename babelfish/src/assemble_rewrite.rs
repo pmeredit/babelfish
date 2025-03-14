@@ -26,6 +26,8 @@ pub enum Error {
     ReferenceNotFoundInSubassemble,
     #[error("Reference key not found: {0}")]
     ReferenceKeyNotFound(String),
+    #[error("Embedded constraints must have targetPath: {0}")]
+    MissingTargetPathInEmbedded(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -44,26 +46,43 @@ pub fn rewrite_pipeline(pipeline: Pipeline) -> Result<Pipeline> {
     }
 }
 
+macro_rules! print_json {
+    ($v:expr) => {
+        serde_json::to_string_pretty($v).unwrap()
+    };
+}
+
 fn handle_embedded_constraint(
+    entity_name: &str,
     reference: &schema::Reference,
     subassemble: &Subassemble,
-) -> Vec<Stage> {
+) -> Result<Vec<Stage>> {
     match reference.relationship_type {
         Relationship::Many => {
-            vec![Stage::Unwind(Unwind::Document(UnwindExpr {
-                path: Expression::Ref(Ref::FieldRef(
-                    reference.storage_constraints[0].target_path.clone(),
-                ))
-                .into(),
-                preserve_null_and_empty_arrays: Some(
-                    subassemble.join == Some(AssembleJoinType::Left),
-                ),
-                include_array_index: None,
-            }))]
+            let Some(target_path) = reference.storage_constraints[0].target_path.clone() else {
+                return Err(Error::MissingTargetPathInEmbedded(print_json!(
+                    &reference.storage_constraints[0]
+                )));
+            };
+            Ok(vec![
+                Stage::Unwind(Unwind::Document(UnwindExpr {
+                    path: Expression::Ref(Ref::FieldRef(target_path.clone())).into(),
+                    preserve_null_and_empty_arrays: Some(
+                        subassemble.join == Some(AssembleJoinType::Left),
+                    ),
+                    include_array_index: None,
+                })),
+                Stage::AddFields(map! {
+                    entity_name.to_string() => Expression::Ref(Ref::FieldRef(target_path.clone())),
+                }),
+                Stage::Project(ProjectStage {
+                    items: map! {
+                        target_path => ProjectItem::Exclusion,
+                    },
+                }),
+            ])
         }
-        Relationship::One => {
-            vec![]
-        }
+        Relationship::One => Ok(vec![]),
     }
 }
 
@@ -80,8 +99,7 @@ fn handle_reference_constraint(
     let Some(foreign_field) = filter.get(key).clone() else {
         return Err(Error::MissingKeyInFilter(
             key.to_string(),
-            // we know this will pretty print because it parsed from json
-            serde_json::to_string_pretty(filter).unwrap(),
+            print_json!(filter),
         ));
     };
     let foreign_field = if let Expression::Ref(Ref::FieldRef(foreign_field)) = foreign_field {
@@ -96,26 +114,43 @@ fn handle_reference_constraint(
     } else {
         entities.get(&reference.entity).unwrap().collection.clone()
     };
-    Ok(vec![
-        Stage::Lookup(Lookup::Equality(EqualityLookup {
-            from: LookupFrom::Collection(from_name.clone()),
-            foreign_field,
-            local_field: reference.storage_constraints[0].target_path.clone(),
-            as_var: from_name.clone(),
-        })),
-        Stage::Unwind(Unwind::Document(UnwindExpr {
+    let mut output = vec![Stage::Lookup(Lookup::Equality(EqualityLookup {
+        from: LookupFrom::Collection(from_name.clone()),
+        foreign_field,
+        local_field: key.to_string(),
+        as_var: from_name.clone(),
+    }))];
+    if entity_name == from_name {
+        output.push(Stage::Unwind(Unwind::Document(UnwindExpr {
+            // this clone isn't strictly necessary, if we refactor this code worse
             path: Expression::Ref(Ref::FieldRef(from_name)).into(),
             preserve_null_and_empty_arrays: Some(subassemble.join == Some(AssembleJoinType::Left)),
             include_array_index: None,
-        })),
-    ])
+        })));
+    } else {
+        output.push(Stage::Unwind(Unwind::Document(UnwindExpr {
+            // this clone isn't strictly necessary, if we refactor this code worse
+            path: Expression::Ref(Ref::FieldRef(from_name.clone())).into(),
+            preserve_null_and_empty_arrays: Some(subassemble.join == Some(AssembleJoinType::Left)),
+            include_array_index: None,
+        })));
+        output.push(Stage::AddFields(map! {
+            entity_name.to_string() => Expression::Ref(Ref::VariableRef(from_name.clone())),
+        }));
+        output.push(Stage::Project(ProjectStage {
+            items: map! {
+                from_name => ProjectItem::Exclusion,
+            },
+        }));
+    }
+
+    Ok(output)
 }
 
 fn handle_subassemble(
-    project_keys: &[String],
     subassemble: Subassemble,
     entities: &BTreeMap<String, Entity>,
-) -> Result<Vec<Stage>> {
+) -> Result<(Vec<Stage>, Vec<String>)> {
     let mut output = Vec::new();
     let subassemble_entity = entities
         .get(&subassemble.entity)
@@ -123,9 +158,7 @@ fn handle_subassemble(
     let filter_keys = subassemble
         .filter
         .clone()
-        .ok_or(Error::MissingFilterInSubassemble(
-            serde_json::to_string_pretty(&subassemble).unwrap(),
-        ))?
+        .ok_or(Error::MissingFilterInSubassemble(print_json!(&subassemble)))?
         .keys()
         .cloned()
         .collect::<Vec<_>>();
@@ -140,7 +173,11 @@ fn handle_subassemble(
             .ok_or(Error::ReferenceKeyNotFound(key.clone()))?;
         match reference.storage_constraints[0].constraint_type {
             ConstraintType::Embedded => {
-                output.extend(handle_embedded_constraint(&reference, &subassemble));
+                output.extend(handle_embedded_constraint(
+                    &subassemble.entity,
+                    &reference,
+                    &subassemble,
+                )?);
             }
             ConstraintType::Reference => {
                 output.extend(handle_reference_constraint(
@@ -154,13 +191,14 @@ fn handle_subassemble(
             _ => todo!("Unsupported constraint type for now"),
         }
     }
-    // handle project, eventually we'll need to union all the subassembles
-    output.push(handle_project({
-        let mut project = subassemble.project;
-        project.extend(project_keys.iter().cloned());
-        project
-    }));
-    Ok(output)
+    Ok((
+        output,
+        subassemble
+            .project
+            .into_iter()
+            .map(|x| format!("{}.{}", subassemble.entity, x))
+            .collect(),
+    ))
 }
 
 fn handle_project(project: Vec<String>) -> Stage {
@@ -213,16 +251,25 @@ impl Visitor for AssembleRewrite {
                 let mut output = vec![Stage::Project(ProjectStage {
                     items: map! {
                         a.entity.clone() => ProjectItem::Assignment(Expression::Ref(Ref::VariableRef("ROOT".to_string()))),
+                        "_id".to_string() => ProjectItem::Exclusion,
                     },
                 })];
+                let mut project_keys = a
+                    .project
+                    .into_iter()
+                    .map(|x| format!("{}.{}", a.entity, x))
+                    .collect::<Vec<_>>();
                 for subassemble in a.subassemble.into_iter() {
-                    let ret = handle_subassemble(a.project.as_ref(), subassemble, &entities);
+                    let ret = handle_subassemble(subassemble, &entities);
                     if let Err(e) = ret {
                         self.error = Some(e);
                         return Stage::SubPipeline(Vec::new());
                     }
-                    output.extend(ret.unwrap().into_iter());
+                    let (stages, keys) = ret.unwrap();
+                    project_keys.extend(keys.into_iter());
+                    output.extend(stages.into_iter());
                 }
+                output.push(handle_project(project_keys));
                 Stage::SubPipeline(output)
             }
             _ => stage,

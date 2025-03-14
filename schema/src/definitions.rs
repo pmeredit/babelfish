@@ -135,7 +135,9 @@ pub struct StorageConstraint {
     pub constraint_type: ConstraintType,
     pub consistency: Consistency,
     pub direction: Direction,
-    pub target_path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub projection: Option<Vec<String>>,
 }
 
