@@ -1,4 +1,4 @@
-pub mod conjunctive_normal_form;
+pub mod conjunctive_normalize;
 pub mod custom_serde;
 pub mod definitions;
 pub mod negative_normalize;
