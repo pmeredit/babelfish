@@ -17,8 +17,11 @@ impl Visitor for CNFVisitor {
                     .map(|operand| self.visit_expression(operand).get_negation())
                     .collect::<Vec<_>>();
                 Expression::UntaggedOperator(UntaggedOperator {
-                    op: UntaggedOperatorName::And,
-                    args,
+                    op: UntaggedOperatorName::Not,
+                    args: vec![Expression::UntaggedOperator(UntaggedOperator {
+                        op: UntaggedOperatorName::And,
+                        args,
+                    })],
                 })
             }
             _ => expression.walk(self),
@@ -27,7 +30,7 @@ impl Visitor for CNFVisitor {
 }
 
 impl Expression {
-    pub fn conjunctive_normal_form(&self) -> Expression {
+    pub fn get_conjunctive_normal_form(&self) -> Expression {
         CNFVisitor.visit_expression(self.clone())
     }
 }

@@ -1,4 +1,6 @@
 pub mod conjunctive_normalize;
+#[cfg(test)]
+mod conjunctive_normalize_tests;
 pub mod custom_serde;
 pub mod definitions;
 pub mod negative_normalize;

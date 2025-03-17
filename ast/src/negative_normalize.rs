@@ -102,7 +102,11 @@ impl NegativeNormalize<Expression> for Expression {
             // This does potentially limit precision, for example, in cases where we have a $not of a $and/$or.
             // However, we won't be inspecting literal values in those cases anyways, so properly inverting these values
             // would have no effect.
-            Expression::Array(_) | Expression::Document(_) | Expression::Literal(_) => self.clone(),
+            Expression::Array(_) | Expression::Document(_) => self.clone(),
+            Expression::Literal(LiteralValue::Boolean(b)) => {
+                Expression::Literal(LiteralValue::Boolean(!b))
+            }
+            Expression::Literal(_) => self.clone(),
             // to negate a field reference, we should assert that it has falsish behavior
             Expression::Ref(_)
             | Expression::TaggedOperator(TaggedOperator::GetField(_))
