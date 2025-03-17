@@ -148,6 +148,7 @@ fn handle_reference_constraint(
 }
 
 fn handle_subassemble(
+    entity_name: &str,
     subassemble: Subassemble,
     entities: &BTreeMap<String, Entity>,
 ) -> Result<(Vec<Stage>, Vec<String>)> {
@@ -155,13 +156,11 @@ fn handle_subassemble(
     let subassemble_entity = entities
         .get(&subassemble.entity)
         .ok_or(Error::EntityMissingFromErd(subassemble.entity.to_string()))?;
-    let filter_keys = subassemble
+    let filter_references = subassemble
         .filter
-        .clone()
-        .ok_or(Error::MissingFilterInSubassemble(print_json!(&subassemble)))?
-        .keys()
-        .cloned()
-        .collect::<Vec<_>>();
+        .as_ref()
+        .unwrap()
+        .get_reference_partition(entity_name, subassemble.entity.as_str());
     for key in filter_keys {
         // TODO: Don't take for granted that the filter is correct like we
         // currently do.

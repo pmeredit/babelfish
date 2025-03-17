@@ -8,6 +8,7 @@ pub mod negative_normalize;
 mod negative_normalize_tests;
 #[cfg(test)]
 mod serde_test;
+pub mod uses;
 
 pub const ROOT_NAME: &str = "ROOT";
 pub const PRUNE_NAME: &str = "PRUNE";

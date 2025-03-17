@@ -105,7 +105,7 @@ pub struct Assemble {
     pub entity: String,
     pub project: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub filter: Option<BTreeMap<String, Expression>>,
+    pub filter: Option<Expression>,
     pub subassemble: Vec<Subassemble>,
 }
 
