@@ -3,6 +3,8 @@ pub mod custom_serde;
 pub mod definitions;
 pub mod negative_normalize;
 #[cfg(test)]
+mod negative_normalize_tests;
+#[cfg(test)]
 mod serde_test;
 
 pub const ROOT_NAME: &str = "ROOT";
