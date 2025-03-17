@@ -156,11 +156,10 @@ fn handle_subassemble(
     let subassemble_entity = entities
         .get(&subassemble.entity)
         .ok_or(Error::EntityMissingFromErd(subassemble.entity.to_string()))?;
-    let filter_references = subassemble
+    let filter_partition = subassemble
         .filter
-        .as_ref()
         .unwrap()
-        .get_reference_partition(entity_name, subassemble.entity.as_str());
+        .filter_partition(entity_name, subassemble.entity.as_str());
     for key in filter_keys {
         // TODO: Don't take for granted that the filter is correct like we
         // currently do.
