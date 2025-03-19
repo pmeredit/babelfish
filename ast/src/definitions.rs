@@ -782,6 +782,31 @@ pub enum Expression {
     Document(LinkedHashMap<String, Expression>),
 }
 
+impl Expression {
+    pub fn conjunct(self, other: Expression) -> Expression {
+        match self {
+            Expression::UntaggedOperator(UntaggedOperator {
+                op: UntaggedOperatorName::And,
+                mut args,
+            }) => {
+                args.push(other);
+                Expression::UntaggedOperator(UntaggedOperator {
+                    op: UntaggedOperatorName::And,
+                    args,
+                })
+            }
+            _ => {
+                let args = vec![self, other];
+                Expression::UntaggedOperator(UntaggedOperator {
+                    op: UntaggedOperatorName::And,
+                    args,
+                })
+            }
+        }
+
+    }
+}
+
 /// Ref represents field references and variable references. Variable references are prefixed with
 /// "$$" and field references are prefixed with "$".
 #[derive(Clone, Debug, PartialEq)]

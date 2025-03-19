@@ -7,7 +7,10 @@
             "entity": "Account",
             "join": "inner",
             "project": ["orderDate", "orderAmount"],
-            "filter": {"$eq": ["$Customer.customerId", "Account.$_id"]}
+            "filter": {"$and": [
+                {"$eq": ["$Customer.customerId", "$Account._id"]},  
+                {"$gt": ["$Customer.customerName", "K"]}
+            ]}
         }]
     }},
     {"$limit": 10},

@@ -86,66 +86,66 @@ fn handle_embedded_constraint(
     }
 }
 
-fn handle_reference_constraint(
-    entity_name: &str,
-    key: &str,
-    reference: &schema::Reference,
-    subassemble: &Subassemble,
-    entities: &BTreeMap<String, Entity>,
-) -> Result<Vec<Stage>> {
-    let Some(filter) = subassemble.filter.as_ref() else {
-        return Err(Error::MissingFilterInSubassemble(key.to_string()));
-    };
-    let Some(foreign_field) = filter.get(key).clone() else {
-        return Err(Error::MissingKeyInFilter(
-            key.to_string(),
-            print_json!(filter),
-        ));
-    };
-    let foreign_field = if let Expression::Ref(Ref::FieldRef(foreign_field)) = foreign_field {
-        foreign_field.clone()
-    } else {
-        // TODO: We probably want to handle other expressions, so I'm leaving this as a panic for
-        // now
-        todo!("Expected field ref in subassemble filter");
-    };
-    let from_name = if reference.storage_constraints[0].direction == Direction::Child {
-        entities.get(entity_name).unwrap().collection.clone()
-    } else {
-        entities.get(&reference.entity).unwrap().collection.clone()
-    };
-    let mut output = vec![Stage::Lookup(Lookup::Equality(EqualityLookup {
-        from: LookupFrom::Collection(from_name.clone()),
-        foreign_field,
-        local_field: key.to_string(),
-        as_var: from_name.clone(),
-    }))];
-    if entity_name == from_name {
-        output.push(Stage::Unwind(Unwind::Document(UnwindExpr {
-            // this clone isn't strictly necessary, if we refactor this code worse
-            path: Expression::Ref(Ref::FieldRef(from_name)).into(),
-            preserve_null_and_empty_arrays: Some(subassemble.join == Some(AssembleJoinType::Left)),
-            include_array_index: None,
-        })));
-    } else {
-        output.push(Stage::Unwind(Unwind::Document(UnwindExpr {
-            // this clone isn't strictly necessary, if we refactor this code worse
-            path: Expression::Ref(Ref::FieldRef(from_name.clone())).into(),
-            preserve_null_and_empty_arrays: Some(subassemble.join == Some(AssembleJoinType::Left)),
-            include_array_index: None,
-        })));
-        output.push(Stage::AddFields(map! {
-            entity_name.to_string() => Expression::Ref(Ref::VariableRef(from_name.clone())),
-        }));
-        output.push(Stage::Project(ProjectStage {
-            items: map! {
-                from_name => ProjectItem::Exclusion,
-            },
-        }));
-    }
+//fn handle_reference_constraint(
+//    entity_name: &str,
+//    key: &str,
+//    reference: &schema::Reference,
+//    subassemble: &Subassemble,
+//    entities: &BTreeMap<String, Entity>,
+//) -> Result<Vec<Stage>> {
+//    let Some(filter) = subassemble.filter.as_ref() else {
+//        return Err(Error::MissingFilterInSubassemble(key.to_string()));
+//    };
+//    let Some(foreign_field) = filter.get(key).clone() else {
+//        return Err(Error::MissingKeyInFilter(
+//            key.to_string(),
+//            print_json!(filter),
+//        ));
+//    };
+//    let foreign_field = if let Expression::Ref(Ref::FieldRef(foreign_field)) = foreign_field {
+//        foreign_field.clone()
+//    } else {
+//        // TODO: We probably want to handle other expressions, so I'm leaving this as a panic for
+//        // now
+//        todo!("Expected field ref in subassemble filter");
+//    };
+//    let from_name = if reference.storage_constraints[0].direction == Direction::Child {
+//        entities.get(entity_name).unwrap().collection.clone()
+//    } else {
+//        entities.get(&reference.entity).unwrap().collection.clone()
+//    };
+//    let mut output = vec![Stage::Lookup(Lookup::Equality(EqualityLookup {
+//        from: LookupFrom::Collection(from_name.clone()),
+//        foreign_field,
+//        local_field: key.to_string(),
+//        as_var: from_name.clone(),
+//    }))];
+//    if entity_name == from_name {
+//        output.push(Stage::Unwind(Unwind::Document(UnwindExpr {
+//            // this clone isn't strictly necessary, if we refactor this code worse
+//            path: Expression::Ref(Ref::FieldRef(from_name)).into(),
+//            preserve_null_and_empty_arrays: Some(subassemble.join == Some(AssembleJoinType::Left)),
+//            include_array_index: None,
+//        })));
+//    } else {
+//        output.push(Stage::Unwind(Unwind::Document(UnwindExpr {
+//            // this clone isn't strictly necessary, if we refactor this code worse
+//            path: Expression::Ref(Ref::FieldRef(from_name.clone())).into(),
+//            preserve_null_and_empty_arrays: Some(subassemble.join == Some(AssembleJoinType::Left)),
+//            include_array_index: None,
+//        })));
+//        output.push(Stage::AddFields(map! {
+//            entity_name.to_string() => Expression::Ref(Ref::VariableRef(from_name.clone())),
+//        }));
+//        output.push(Stage::Project(ProjectStage {
+//            items: map! {
+//                from_name => ProjectItem::Exclusion,
+//            },
+//        }));
+//    }
 
-    Ok(output)
-}
+//Ok(output)
+//}
 
 fn handle_subassemble(
     entity_name: &str,
@@ -160,35 +160,7 @@ fn handle_subassemble(
         .filter
         .unwrap()
         .filter_partition(entity_name, subassemble.entity.as_str());
-    for key in filter_keys {
-        // TODO: Don't take for granted that the filter is correct like we
-        // currently do.
-        let reference = subassemble_entity
-            .json_schema
-            .references()
-            .ok_or(Error::ReferenceNotFoundInSubassemble)?
-            .get(&key)
-            .ok_or(Error::ReferenceKeyNotFound(key.clone()))?;
-        match reference.storage_constraints[0].constraint_type {
-            ConstraintType::Embedded => {
-                output.extend(handle_embedded_constraint(
-                    &subassemble.entity,
-                    &reference,
-                    &subassemble,
-                )?);
-            }
-            ConstraintType::Reference => {
-                output.extend(handle_reference_constraint(
-                    subassemble.entity.as_str(),
-                    key.as_str(),
-                    &reference,
-                    &subassemble,
-                    entities,
-                )?);
-            }
-            _ => todo!("Unsupported constraint type for now"),
-        }
-    }
+    dbg!(&filter_partition);
     Ok((
         output,
         subassemble
@@ -258,7 +230,7 @@ impl Visitor for AssembleRewrite {
                     .map(|x| format!("{}.{}", a.entity, x))
                     .collect::<Vec<_>>();
                 for subassemble in a.subassemble.into_iter() {
-                    let ret = handle_subassemble(subassemble, &entities);
+                    let ret = handle_subassemble(&a.entity, subassemble, &entities);
                     if let Err(e) = ret {
                         self.error = Some(e);
                         return Stage::SubPipeline(Vec::new());
