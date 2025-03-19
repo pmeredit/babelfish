@@ -1,9 +1,11 @@
 use ast::{
     definitions::{
         visitor::Visitor, AssembleJoinType, EqualityLookup, Expression, Lookup, LookupFrom,
-        Pipeline, ProjectItem, ProjectStage, Ref, Stage, Subassemble, Unwind, UnwindExpr,
+        MatchExpr, MatchExpression, MatchStage, Pipeline, ProjectItem, ProjectStage, Ref, Stage,
+        Subassemble, SubqueryLookup, Unwind, UnwindExpr,
     },
     map,
+    uses::FilterAndUsePartition,
 };
 use linked_hash_map::LinkedHashMap;
 use schema::{ConstraintType, Direction, Entity, Erd, Relationship};
@@ -86,66 +88,75 @@ fn handle_embedded_constraint(
     }
 }
 
-//fn handle_reference_constraint(
-//    entity_name: &str,
-//    key: &str,
-//    reference: &schema::Reference,
-//    subassemble: &Subassemble,
-//    entities: &BTreeMap<String, Entity>,
-//) -> Result<Vec<Stage>> {
-//    let Some(filter) = subassemble.filter.as_ref() else {
-//        return Err(Error::MissingFilterInSubassemble(key.to_string()));
-//    };
-//    let Some(foreign_field) = filter.get(key).clone() else {
-//        return Err(Error::MissingKeyInFilter(
-//            key.to_string(),
-//            print_json!(filter),
-//        ));
-//    };
-//    let foreign_field = if let Expression::Ref(Ref::FieldRef(foreign_field)) = foreign_field {
-//        foreign_field.clone()
-//    } else {
-//        // TODO: We probably want to handle other expressions, so I'm leaving this as a panic for
-//        // now
-//        todo!("Expected field ref in subassemble filter");
-//    };
-//    let from_name = if reference.storage_constraints[0].direction == Direction::Child {
-//        entities.get(entity_name).unwrap().collection.clone()
-//    } else {
-//        entities.get(&reference.entity).unwrap().collection.clone()
-//    };
-//    let mut output = vec![Stage::Lookup(Lookup::Equality(EqualityLookup {
-//        from: LookupFrom::Collection(from_name.clone()),
-//        foreign_field,
-//        local_field: key.to_string(),
-//        as_var: from_name.clone(),
-//    }))];
-//    if entity_name == from_name {
-//        output.push(Stage::Unwind(Unwind::Document(UnwindExpr {
-//            // this clone isn't strictly necessary, if we refactor this code worse
-//            path: Expression::Ref(Ref::FieldRef(from_name)).into(),
-//            preserve_null_and_empty_arrays: Some(subassemble.join == Some(AssembleJoinType::Left)),
-//            include_array_index: None,
-//        })));
-//    } else {
-//        output.push(Stage::Unwind(Unwind::Document(UnwindExpr {
-//            // this clone isn't strictly necessary, if we refactor this code worse
-//            path: Expression::Ref(Ref::FieldRef(from_name.clone())).into(),
-//            preserve_null_and_empty_arrays: Some(subassemble.join == Some(AssembleJoinType::Left)),
-//            include_array_index: None,
-//        })));
-//        output.push(Stage::AddFields(map! {
-//            entity_name.to_string() => Expression::Ref(Ref::VariableRef(from_name.clone())),
-//        }));
-//        output.push(Stage::Project(ProjectStage {
-//            items: map! {
-//                from_name => ProjectItem::Exclusion,
-//            },
-//        }));
-//    }
+struct ReplaceVisitor {
+    entity_prefix: String,
+}
 
-//Ok(output)
-//}
+impl Visitor for ReplaceVisitor {
+    fn visit_expression(&mut self, expression: Expression) -> Expression {
+        match expression {
+            Expression::Ref(Ref::FieldRef(s)) => {
+                if s.starts_with(&self.entity_prefix) {
+                    Expression::Ref(Ref::VariableRef(s))
+                } else {
+                    Expression::Ref(Ref::FieldRef(s))
+                }
+            }
+            _ => expression.walk(self),
+        }
+    }
+}
+
+fn replace_with_variable(expression: Expression, entity_name: &str) -> Expression {
+    let mut visitor = ReplaceVisitor {
+        entity_prefix: format!("{}.", entity_name),
+    };
+    visitor.visit_expression(expression)
+}
+
+fn handle_reference_constraint(
+    entity_name: &str,
+    subassemble_entity: &str,
+    subassemble_join: Option<AssembleJoinType>,
+    partition: FilterAndUsePartition,
+) -> Result<Vec<Stage>> {
+    // TODO: Handle checking and entity names that do not match collection names
+    let pipeline = if let Some(matcher) = partition.right {
+        let matcher = replace_with_variable(matcher, entity_name);
+        vec![Stage::Match(MatchStage {
+            expr: vec![MatchExpression::Expr(MatchExpr {
+                expr: Box::new(matcher),
+            })],
+        })]
+    } else {
+        vec![]
+    };
+    let mut output = if let Some(matcher) = partition.left {
+        vec![Stage::Match(MatchStage {
+            expr: vec![MatchExpression::Expr(MatchExpr {
+                expr: Box::new(matcher),
+            })],
+        })]
+    } else {
+        vec![]
+    };
+    output.push(Stage::Lookup(Lookup::Subquery(SubqueryLookup {
+        from: Some(LookupFrom::Collection(subassemble_entity.to_string())),
+        let_body: Some(map! {
+            entity_name.to_string() => Expression::Ref(Ref::FieldRef(entity_name.to_string())),
+        }),
+        pipeline,
+        as_var: subassemble_entity.to_string(),
+    })));
+    output.push(Stage::Unwind(Unwind::Document(UnwindExpr {
+        path: Box::new(Expression::Ref(Ref::FieldRef(
+            subassemble_entity.to_string(),
+        ))),
+        include_array_index: None,
+        preserve_null_and_empty_arrays: Some(subassemble_join == Some(AssembleJoinType::Left)),
+    })));
+    Ok(output)
+}
 
 fn handle_subassemble(
     entity_name: &str,
@@ -160,7 +171,13 @@ fn handle_subassemble(
         .filter
         .unwrap()
         .filter_partition(entity_name, subassemble.entity.as_str());
-    dbg!(&filter_partition);
+    // TODO:: Handle embedded constraints again
+    output.extend(handle_reference_constraint(
+        entity_name,
+        &subassemble.entity,
+        subassemble.join,
+        filter_partition,
+    )?);
     Ok((
         output,
         subassemble
