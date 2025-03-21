@@ -1,0 +1,13 @@
+[
+    {"$match": {
+        "$expr": {"$and": [
+            {"$eq": ["$status", "A"]},
+            {"$eq": ["$type", "B"]}
+        ]},
+        "$expr": {"$eq": ["$type", "C"]}
+    }},
+    {"$project": {
+        "status": 1,
+        "type": 1
+    }}
+]

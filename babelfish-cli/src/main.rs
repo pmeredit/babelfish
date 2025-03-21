@@ -40,8 +40,10 @@ impl From<babelfish::assemble_rewrite::Error> for CliError {
 struct Cli {
     #[arg(short, long, help = "pipeline bson file")]
     pipeline_file: Option<String>,
-    #[arg(short, long, help = "verbose mode")]
+    #[arg(short, long, help = "erd file")]
     erd_file: Option<String>,
+    #[arg(short, long, help = "match split ")]
+    match_split: Option<String>,
 }
 
 fn main() -> Result<(), CliError> {
@@ -51,13 +53,18 @@ fn main() -> Result<(), CliError> {
         let erd = std::fs::read_to_string(erd_file)?;
         let erd: Erd = serde_json::from_str(&erd)?;
         println!("{:?}", erd);
-    }
-    if let Some(pipeline_file) = &args.pipeline_file {
+    } else if let Some(pipeline_file) = &args.pipeline_file {
         let pipeline = std::fs::read_to_string(pipeline_file)?;
         let pipeline: Pipeline = serde_json::from_str(&pipeline)?;
         let pipeline = assemble_rewrite::rewrite_pipeline(pipeline)?;
         let pipeline_json = serde_json::to_string_pretty(&pipeline)?;
         println!("{}", pipeline_json);
+    } else if let Some(match_split) = &args.match_split {
+        let match_split = std::fs::read_to_string(match_split)?;
+        let match_split: Pipeline = serde_json::from_str(&match_split)?;
+        let match_split = match_movement_rewrite::rewrite_match_split(match_split);
+        let match_split_json = serde_json::to_string_pretty(&match_split)?;
+        println!("{}", match_split_json);
     }
     Ok(())
 }
