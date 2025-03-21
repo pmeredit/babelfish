@@ -14,12 +14,11 @@ impl Visitor for SubpipelineFlatten {
                 .pipeline
                 .into_iter()
                 .flat_map(|stage| match self.visit_stage(stage) {
-                    Stage::SubPipeline(sub_pipeline) => sub_pipeline,
+                    Stage::SubPipeline(sub_pipeline) => sub_pipeline.pipeline,
                     stage => vec![stage],
                 })
                 .collect(),
         }
-        .walk(self)
     }
 }
 
@@ -54,10 +53,11 @@ impl Visitor for MatchSplitter {
                                 }));
                             }
                         }
+                        // TODO: this isn't needed for mql assemble, but will be useful later
                         _ => todo!(),
                     }
                 }
-                Stage::SubPipeline(stages)
+                Stage::SubPipeline(Pipeline { pipeline: stages })
             }
             _ => stage.walk(self),
         }

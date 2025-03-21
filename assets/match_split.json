@@ -9,5 +9,21 @@
     {"$project": {
         "status": 1,
         "type": 1
-    }}
+    }},
+    {"$lookup": 
+        {
+            "from": "collection",
+            "pipeline": [
+                {"$match": {
+                    "$expr": {"$eq": ["$status", "A"]},
+                    "$expr": {"$eq": ["$type", "B"]}
+                }},
+                {"$project": {
+                    "status": 1,
+                    "type": 1
+                }}
+            ],
+            "as": "collection"
+        }
+    }
 ]

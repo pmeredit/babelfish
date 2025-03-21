@@ -2,7 +2,6 @@ use crate::custom_serde::{deserialize_mql_operator, serialize_mql_operator};
 use bson::Bson;
 use linked_hash_map::LinkedHashMap;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 
 // This module contains an aggregation pipeline syntax tree that implements
 // serde::Deserialize. This allows us to deserialize aggregation pipelines from
@@ -21,7 +20,7 @@ use std::collections::BTreeMap;
 // manager.
 
 visitgen::generate_visitors! {
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Pipeline {
     pub pipeline: Vec<Stage>,
@@ -32,7 +31,7 @@ pub struct Pipeline {
 pub enum Stage {
     // This is used so that we can visit Stages that rewrite to multiple Stages.
     #[serde(skip)]
-    SubPipeline(Vec<Stage>),
+    SubPipeline(Pipeline),
 
     #[serde(rename = "$addFields", alias = "$set")]
     AddFields(LinkedHashMap<String, Expression>),
@@ -81,7 +80,7 @@ pub enum Stage {
     #[serde(rename = "$densify")]
     Densify(Densify),
     #[serde(rename = "$facet")]
-    Facet(LinkedHashMap<String, Vec<Stage>>),
+    Facet(LinkedHashMap<String, Pipeline>),
     #[serde(rename = "$fill")]
     Fill(Fill),
     #[serde(rename = "$geoNear")]
@@ -480,7 +479,7 @@ pub struct Join {
     pub join_type: JoinType,
     #[serde(rename = "let")]
     pub let_body: Option<LinkedHashMap<String, Expression>>,
-    pub pipeline: Vec<Stage>,
+    pub pipeline: Pipeline,
     pub condition: Option<Expression>,
 }
 
@@ -552,7 +551,7 @@ pub struct ConciseSubqueryLookup {
     pub foreign_field: String,
     #[serde(rename = "let")]
     pub let_body: Option<LinkedHashMap<String, Expression>>,
-    pub pipeline: Vec<Stage>,
+    pub pipeline: Pipeline,
     #[serde(rename = "as")]
     pub as_var: String,
 }
@@ -563,7 +562,7 @@ pub struct SubqueryLookup {
     pub from: Option<LookupFrom>,
     #[serde(rename = "let")]
     pub let_body: Option<LinkedHashMap<String, Expression>>,
-    pub pipeline: Vec<Stage>,
+    pub pipeline: Pipeline,
     #[serde(rename = "as")]
     pub as_var: String,
 }
@@ -727,7 +726,7 @@ pub enum UnionWith {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UnionWithPipeline {
     pub collection: String,
-    pub pipeline: Vec<Stage>,
+    pub pipeline: Pipeline,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1529,7 +1528,7 @@ pub struct Subquery {
     #[serde(rename = "let")]
     pub let_bindings: Option<LinkedHashMap<String, Expression>>,
     pub output_path: Option<Vec<String>>,
-    pub pipeline: Vec<Stage>,
+    pub pipeline: Pipeline,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1546,7 +1545,7 @@ pub struct SubqueryExists {
     pub collection: Option<String>,
     #[serde(rename = "let")]
     pub let_bindings: Option<LinkedHashMap<String, Expression>>,
-    pub pipeline: Vec<Stage>,
+    pub pipeline: Pipeline,
 }
 
 fn default_zip_defaults() -> bool {

@@ -145,7 +145,7 @@ fn handle_reference_constraint(
         let_body: Some(map! {
             entity_name.to_string() => Expression::Ref(Ref::FieldRef(entity_name.to_string())),
         }),
-        pipeline,
+        pipeline: Pipeline { pipeline },
         as_var: subassemble_entity.to_string(),
     })));
     output.push(Stage::Unwind(Unwind::Document(UnwindExpr {
@@ -211,14 +211,18 @@ impl Visitor for AssembleRewrite {
     // visit_stage is here to handle Assemble stages and replace them with SubPipelines
     fn visit_stage(&mut self, stage: Stage) -> Stage {
         if self.error.is_some() {
-            return Stage::SubPipeline(Vec::new());
+            return Stage::SubPipeline(Pipeline {
+                pipeline: Vec::new(),
+            });
         }
         macro_rules! handle_error {
             ($e:expr) => {
                 match $e {
                     Err(e) => {
                         self.error = Some(e);
-                        return Stage::SubPipeline(Vec::new());
+                        return Stage::SubPipeline(Pipeline {
+                            pipeline: Vec::new(),
+                        });
                     }
                     Ok(v) => v,
                 }
@@ -250,14 +254,16 @@ impl Visitor for AssembleRewrite {
                     let ret = handle_subassemble(&a.entity, subassemble, &entities);
                     if let Err(e) = ret {
                         self.error = Some(e);
-                        return Stage::SubPipeline(Vec::new());
+                        return Stage::SubPipeline(Pipeline {
+                            pipeline: Vec::new(),
+                        });
                     }
                     let (stages, keys) = ret.unwrap();
                     project_keys.extend(keys.into_iter());
                     output.extend(stages.into_iter());
                 }
                 output.push(handle_project(project_keys));
-                Stage::SubPipeline(output)
+                Stage::SubPipeline(Pipeline { pipeline: output })
             }
             _ => stage,
         }
@@ -271,7 +277,7 @@ impl Visitor for AssembleRewrite {
                 .pipeline
                 .into_iter()
                 .flat_map(|stage| match self.visit_stage(stage) {
-                    Stage::SubPipeline(sub_pipeline) => sub_pipeline,
+                    Stage::SubPipeline(sub_pipeline) => sub_pipeline.pipeline,
                     stage => vec![stage],
                 })
                 .collect(),
