@@ -2,6 +2,7 @@ use crate::custom_serde::{deserialize_mql_operator, serialize_mql_operator};
 use bson::Bson;
 use linked_hash_map::LinkedHashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 // This module contains an aggregation pipeline syntax tree that implements
 // serde::Deserialize. This allows us to deserialize aggregation pipelines from
@@ -95,6 +96,50 @@ pub enum Stage {
     GraphLookup(GraphLookup),
     #[serde(untagged)]
     AtlasSearchStage(AtlasSearchStage),
+}
+
+impl Stage {
+    pub fn opaque_defines(&self) -> Option<Vec<String>> {
+        Some(
+        match self {
+            Stage::AddFields(fields) => fields.keys().cloned().collect(),
+            Stage::Project(stage) => stage.items.keys().cloned().collect(),
+            Stage::Group(group) => group.aggregations.keys().cloned().chain(["_id".to_string()].into_iter()).collect(),
+            Stage::Lookup(Lookup::Equality(lookup)) => vec![lookup.as_var.clone()],
+            Stage::Lookup(Lookup::ConciseSubquery(lookup)) => vec![lookup.as_var.clone()],
+            Stage::Lookup(Lookup::Subquery(lookup)) => vec![lookup.as_var.clone()],
+            Stage::Unwind(Unwind::Document(expr)) => {
+                let mut ret = if let Expression::Ref(Ref::FieldRef(ref field)) = *expr.path {
+                    vec![field.clone()]
+                } else {
+                    unreachable!()
+                };
+                if let Some(include_array_index) = &expr.include_array_index {
+                    ret.push(include_array_index.clone());
+                }
+                ret
+            }
+            // TODO
+            _ => None?,
+        })
+    }
+
+    pub fn defines(&self) -> Option<BTreeMap<String, Expression>> {
+        Some(
+            match self {
+                Stage::AddFields(fields) => fields.iter().map(|(k,v)| (k.clone(), v.clone())).collect(),
+                Stage::Project(stage) => stage
+                    .items
+                    .iter()
+                    .flat_map(|(k, v)| Some((k.clone(), match v {
+                        ProjectItem::Assignment(expr) => expr.clone(),
+                        ProjectItem::Inclusion => Expression::Ref(Ref::FieldRef(k.clone())),
+                        _ => None?
+                    }))).collect(),
+                _ => None?,
+            }
+        )
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -513,6 +558,7 @@ pub enum Unwind {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UnwindExpr {
+    // TODO: make this a Ref
     pub path: Box<Expression>,
     pub include_array_index: Option<String>,
     pub preserve_null_and_empty_arrays: Option<bool>,

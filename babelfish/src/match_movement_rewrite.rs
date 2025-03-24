@@ -70,3 +70,5 @@ pub fn rewrite_match_split(pipeline: Pipeline) -> Pipeline {
     let mut visitor = SubpipelineFlatten;
     visitor.visit_pipeline(pipeline)
 }
+
+struct MatchMover;
