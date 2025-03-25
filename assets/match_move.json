@@ -1,14 +1,14 @@
 [
+    {"$project": {
+        "status": {"$concat": ["$status", "hello world"]}, 
+        "type": 1
+    }},
     {"$match": {
         "$expr": {"$and": [
             {"$eq": ["$status", "A"]},
             {"$eq": ["$type", "B"]}
         ]},
         "$expr": {"$eq": ["$type", "C"]}
-    }},
-    {"$project": {
-        "status": 1,
-        "type": 1
     }},
     {"$lookup": 
         {
@@ -25,5 +25,11 @@
             ],
             "as": "collection"
         }
-    }
+    },
+    {"$match": {
+        "$expr": {"$and": [
+            {"$eq": ["$collection", "C"]},
+            {"$eq": ["$type", "D"]}
+        ]}
+    }}
 ]

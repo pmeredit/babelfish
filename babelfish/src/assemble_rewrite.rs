@@ -5,7 +5,6 @@ use ast::{
         Subassemble, SubqueryLookup, Unwind, UnwindExpr,
     },
     map,
-    uses::FilterAndUsePartition,
 };
 use linked_hash_map::LinkedHashMap;
 use schema::{ConstraintType, Direction, Entity, Erd, Relationship};
@@ -114,49 +113,48 @@ fn replace_with_variable(expression: Expression, entity_name: &str) -> Expressio
     visitor.visit_expression(expression)
 }
 
-fn handle_reference_constraint(
-    entity_name: &str,
-    subassemble_entity: &str,
-    subassemble_join: Option<AssembleJoinType>,
-    partition: FilterAndUsePartition,
-) -> Result<Vec<Stage>> {
-    // TODO: Handle checking and entity names that do not match collection names
-    let pipeline = if let Some(matcher) = partition.right {
-        let matcher = replace_with_variable(matcher, entity_name);
-        vec![Stage::Match(MatchStage {
-            expr: vec![MatchExpression::Expr(MatchExpr {
-                expr: Box::new(matcher),
-            })],
-        })]
-    } else {
-        vec![]
-    };
-    let mut output = if let Some(matcher) = partition.left {
-        vec![Stage::Match(MatchStage {
-            expr: vec![MatchExpression::Expr(MatchExpr {
-                expr: Box::new(matcher),
-            })],
-        })]
-    } else {
-        vec![]
-    };
-    output.push(Stage::Lookup(Lookup::Subquery(SubqueryLookup {
-        from: Some(LookupFrom::Collection(subassemble_entity.to_string())),
-        let_body: Some(map! {
-            entity_name.to_string() => Expression::Ref(Ref::FieldRef(entity_name.to_string())),
-        }),
-        pipeline: Pipeline { pipeline },
-        as_var: subassemble_entity.to_string(),
-    })));
-    output.push(Stage::Unwind(Unwind::Document(UnwindExpr {
-        path: Box::new(Expression::Ref(Ref::FieldRef(
-            subassemble_entity.to_string(),
-        ))),
-        include_array_index: None,
-        preserve_null_and_empty_arrays: Some(subassemble_join == Some(AssembleJoinType::Left)),
-    })));
-    Ok(output)
-}
+//fn handle_reference_constraint(
+//    entity_name: &str,
+//    subassemble_entity: &str,
+//    subassemble_join: Option<AssembleJoinType>,
+//) -> Result<Vec<Stage>> {
+//    // TODO: Handle checking and entity names that do not match collection names
+//    let pipeline = if let Some(matcher) = partition.right {
+//        let matcher = replace_with_variable(matcher, entity_name);
+//        vec![Stage::Match(MatchStage {
+//            expr: vec![MatchExpression::Expr(MatchExpr {
+//                expr: Box::new(matcher),
+//            })],
+//        })]
+//    } else {
+//        vec![]
+//    };
+//    let mut output = if let Some(matcher) = partition.left {
+//        vec![Stage::Match(MatchStage {
+//            expr: vec![MatchExpression::Expr(MatchExpr {
+//                expr: Box::new(matcher),
+//            })],
+//        })]
+//    } else {
+//        vec![]
+//    };
+//    output.push(Stage::Lookup(Lookup::Subquery(SubqueryLookup {
+//        from: Some(LookupFrom::Collection(subassemble_entity.to_string())),
+//        let_body: Some(map! {
+//            entity_name.to_string() => Expression::Ref(Ref::FieldRef(entity_name.to_string())),
+//        }),
+//        pipeline: Pipeline { pipeline },
+//        as_var: subassemble_entity.to_string(),
+//    })));
+//    output.push(Stage::Unwind(Unwind::Document(UnwindExpr {
+//        path: Box::new(Expression::Ref(Ref::FieldRef(
+//            subassemble_entity.to_string(),
+//        ))),
+//        include_array_index: None,
+//        preserve_null_and_empty_arrays: Some(subassemble_join == Some(AssembleJoinType::Left)),
+//    })));
+//    Ok(output)
+//}
 
 fn handle_subassemble(
     entity_name: &str,
@@ -167,17 +165,17 @@ fn handle_subassemble(
     let subassemble_entity = entities
         .get(&subassemble.entity)
         .ok_or(Error::EntityMissingFromErd(subassemble.entity.to_string()))?;
-    let filter_partition = subassemble
-        .filter
-        .unwrap()
-        .filter_partition(entity_name, subassemble.entity.as_str());
+    //  let filter_partition = subassemble
+    //      .filter
+    //       .unwrap()
+    //      .filter_partition(entity_name, subassemble.entity.as_str());
     // TODO:: Handle embedded constraints again
-    output.extend(handle_reference_constraint(
-        entity_name,
-        &subassemble.entity,
-        subassemble.join,
-        filter_partition,
-    )?);
+    //output.extend(handle_reference_constraint(
+    //    entity_name,
+    //    &subassemble.entity,
+    //    subassemble.join,
+    //    filter_partition,
+    //)?);
     Ok((
         output,
         subassemble

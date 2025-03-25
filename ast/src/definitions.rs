@@ -28,7 +28,7 @@ pub struct Pipeline {
 }
 
 /// Stage represents an aggregation pipeline stage.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub enum Stage {
     // This is used so that we can visit Stages that rewrite to multiple Stages.
     #[serde(skip)]
@@ -94,52 +94,11 @@ pub enum Stage {
     // Search stages
     #[serde(rename = "$graphLookup")]
     GraphLookup(GraphLookup),
+    #[default]
+    Sentinel,
+
     #[serde(untagged)]
     AtlasSearchStage(AtlasSearchStage),
-}
-
-impl Stage {
-    pub fn opaque_defines(&self) -> Option<Vec<String>> {
-        Some(
-        match self {
-            Stage::AddFields(fields) => fields.keys().cloned().collect(),
-            Stage::Project(stage) => stage.items.keys().cloned().collect(),
-            Stage::Group(group) => group.aggregations.keys().cloned().chain(["_id".to_string()].into_iter()).collect(),
-            Stage::Lookup(Lookup::Equality(lookup)) => vec![lookup.as_var.clone()],
-            Stage::Lookup(Lookup::ConciseSubquery(lookup)) => vec![lookup.as_var.clone()],
-            Stage::Lookup(Lookup::Subquery(lookup)) => vec![lookup.as_var.clone()],
-            Stage::Unwind(Unwind::Document(expr)) => {
-                let mut ret = if let Expression::Ref(Ref::FieldRef(ref field)) = *expr.path {
-                    vec![field.clone()]
-                } else {
-                    unreachable!()
-                };
-                if let Some(include_array_index) = &expr.include_array_index {
-                    ret.push(include_array_index.clone());
-                }
-                ret
-            }
-            // TODO
-            _ => None?,
-        })
-    }
-
-    pub fn defines(&self) -> Option<BTreeMap<String, Expression>> {
-        Some(
-            match self {
-                Stage::AddFields(fields) => fields.iter().map(|(k,v)| (k.clone(), v.clone())).collect(),
-                Stage::Project(stage) => stage
-                    .items
-                    .iter()
-                    .flat_map(|(k, v)| Some((k.clone(), match v {
-                        ProjectItem::Assignment(expr) => expr.clone(),
-                        ProjectItem::Inclusion => Expression::Ref(Ref::FieldRef(k.clone())),
-                        _ => None?
-                    }))).collect(),
-                _ => None?,
-            }
-        )
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1863,6 +1822,7 @@ impl Stage {
             Stage::Sample(_) => "$sample",
             Stage::UnionWith(_) => "$unionWith",
             Stage::GraphLookup(_) => "$graphLookup",
+            Stage::Sentinel => "<Sentinel>",
             Stage::AtlasSearchStage(_) => "<Atlas search stage>",
         }
     }

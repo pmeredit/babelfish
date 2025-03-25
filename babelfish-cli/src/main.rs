@@ -42,8 +42,8 @@ struct Cli {
     pipeline_file: Option<String>,
     #[arg(short, long, help = "erd file")]
     erd_file: Option<String>,
-    #[arg(short, long, help = "match split ")]
-    match_split: Option<String>,
+    #[arg(short, long, help = "match move")]
+    match_move: Option<String>,
 }
 
 fn main() -> Result<(), CliError> {
@@ -59,12 +59,12 @@ fn main() -> Result<(), CliError> {
         let pipeline = assemble_rewrite::rewrite_pipeline(pipeline)?;
         let pipeline_json = serde_json::to_string_pretty(&pipeline)?;
         println!("{}", pipeline_json);
-    } else if let Some(match_split) = &args.match_split {
-        let match_split = std::fs::read_to_string(match_split)?;
-        let match_split: Pipeline = serde_json::from_str(&match_split)?;
-        let match_split = match_movement_rewrite::rewrite_match_split(match_split);
-        let match_split_json = serde_json::to_string_pretty(&match_split)?;
-        println!("{}", match_split_json);
+    } else if let Some(match_move) = &args.match_move {
+        let match_move = std::fs::read_to_string(match_move)?;
+        let match_move: Pipeline = serde_json::from_str(&match_move)?;
+        let match_move = match_movement_rewrite::rewrite_match_move(match_move);
+        let match_move_json = serde_json::to_string_pretty(&match_move)?;
+        println!("{}", match_move_json);
     }
     Ok(())
 }

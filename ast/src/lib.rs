@@ -28,3 +28,14 @@ macro_rules! map {
 		].into_iter())
 	};
 }
+
+#[macro_export]
+macro_rules! set {
+	($($val:expr),* $(,)?) => {
+		std::iter::Iterator::collect([
+			$({
+				$val
+			},)*
+		].into_iter())
+	};
+}
