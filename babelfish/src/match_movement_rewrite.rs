@@ -71,14 +71,9 @@ impl Visitor for MatchMover {
     fn visit_pipeline(&mut self, mut pipeline: Pipeline) -> Pipeline {
         let len = pipeline.pipeline.len();
         let mut i = len - 1;
-        // the most swaps we can do is the number of matches * len of pipeline.
-        let mut total_swaps = pipeline
-            .pipeline
-            .iter()
-            .filter(|x| matches!(x, Stage::Match(_)))
-            .collect::<Vec<_>>()
-            .len()
-            * len;
+        // the most swaps we can do is the number of len * len of pipeline.
+        // TODO: figure out a better termination condition, perhaps a set of visited stages? yuck
+        let mut total_swaps = len * len;
         // we never move the first stage
         while i > 1 && total_swaps > 0 {
             total_swaps -= 1;
@@ -120,12 +115,7 @@ fn move_match(mut expr: Vec<MatchExpression>, pipeline: &mut Pipeline, i: usize)
         let uses = expr.uses();
         let swap_stage = pipeline.pipeline.get(j - 1).unwrap();
         let opaque_defines = swap_stage.opaque_defines();
-        if opaque_defines.is_some()
-            && !uses
-                .intersection(opaque_defines.as_ref().unwrap())
-                .collect::<Vec<_>>()
-                .is_empty()
-        {
+        if opaque_defines.is_some() && uses.prefix_overlap(opaque_defines.as_ref().unwrap()) {
             terminal_case!(
                 vec![MatchExpression::Expr(MatchExpr {
                     expr: Box::new(expr),
@@ -166,6 +156,7 @@ impl Visitor for MatchCoalescer {
         let mut out = vec![];
         let mut current_match = Vec::new();
         for stage in pipeline.pipeline.into_iter() {
+            let stage = stage.walk(self);
             match stage {
                 Stage::Match(MatchStage { expr }) => {
                     let MatchExpression::Expr(MatchExpr { expr }) =

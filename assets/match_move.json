@@ -5,7 +5,7 @@
     }},
     {"$match": {
         "$expr": {"$and": [
-            {"$eq": ["$status", "A"]},
+            {"$eq": ["$status", "Ahello world"]},
             {"$eq": ["$type", "B"]}
         ]},
         "$expr": {"$eq": ["$type", "C"]}
@@ -28,7 +28,7 @@
     },
     {"$match": {
         "$expr": {"$and": [
-            {"$eq": ["$collection", "C"]},
+            {"$eq": ["$collection.foo", "A"]},
             {"$eq": ["$type", "D"]}
         ]}
     }}
