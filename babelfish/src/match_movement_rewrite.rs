@@ -159,11 +159,60 @@ fn move_match(mut expr: Vec<MatchExpression>, pipeline: &mut Pipeline, i: usize)
     );
 }
 
+struct MatchCoalescer;
+
+impl Visitor for MatchCoalescer {
+    fn visit_pipeline(&mut self, pipeline: Pipeline) -> Pipeline {
+        let mut out = vec![];
+        let mut current_match = Vec::new();
+        for stage in pipeline.pipeline.into_iter() {
+            match stage {
+                Stage::Match(MatchStage { expr }) => {
+                    let MatchExpression::Expr(MatchExpr { expr }) =
+                        expr.into_iter().next().unwrap()
+                    else {
+                        todo!("handle other types of match stages");
+                    };
+                    current_match.push(*expr);
+                }
+                stage => {
+                    if !current_match.is_empty() {
+                        // We'll merge these into one $expr just for clenliness of reading, this is
+                        // not needed. Actually this whole pass is not needed, the query planner
+                        // should coallesce these into one match stage.
+                        let expr = vec![MatchExpression::Expr(MatchExpr {
+                            expr: Box::new(Expression::UntaggedOperator(UntaggedOperator {
+                                op: UntaggedOperatorName::And,
+                                args: current_match,
+                            })),
+                        })];
+                        out.push(Stage::Match(MatchStage { expr }));
+                        current_match = Vec::new();
+                    }
+                    out.push(stage);
+                }
+            }
+        }
+        if !current_match.is_empty() {
+            let expr = vec![MatchExpression::Expr(MatchExpr {
+                expr: Box::new(Expression::UntaggedOperator(UntaggedOperator {
+                    op: UntaggedOperatorName::And,
+                    args: current_match,
+                })),
+            })];
+            out.push(Stage::Match(MatchStage { expr }));
+        }
+        Pipeline { pipeline: out }
+    }
+}
+
 pub fn rewrite_match_move(pipeline: Pipeline) -> Pipeline {
     let mut visitor = MatchSplitter;
     let pipeline = visitor.visit_pipeline(pipeline);
     let mut visitor = SubpipelineFlatten;
     let pipeline = visitor.visit_pipeline(pipeline);
     let mut visitor = MatchMover;
+    let pipeline = visitor.visit_pipeline(pipeline);
+    let mut visitor = MatchCoalescer;
     visitor.visit_pipeline(pipeline)
 }
