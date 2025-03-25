@@ -75,9 +75,13 @@ impl Visitor for MatchMover {
         // TODO: figure out a better termination condition, perhaps a set of visited stages? yuck
         let mut total_swaps = len * len;
         // we never move the first stage
-        while i > 1 && total_swaps > 0 {
+        while i > 0 && total_swaps > 0 {
             total_swaps -= 1;
             let stage = std::mem::take(pipeline.pipeline.get_mut(i).unwrap()).walk(self);
+            println!(
+                "i: {i}, stage: {}",
+                serde_json::to_string_pretty(&stage).unwrap()
+            );
             if let Stage::Match(MatchStage { expr }) = stage {
                 if !move_match(expr, &mut pipeline, i) {
                     i -= 1;
