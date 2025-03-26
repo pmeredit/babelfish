@@ -1,8 +1,8 @@
 use ast::definitions::{
-    visitor::Visitor, Expression, MatchExpr, MatchExpression, MatchStage, Pipeline, Stage,
-    UntaggedOperator, UntaggedOperatorName,
+    visitor::Visitor, Expression, LiteralValue, Lookup, MatchExpr, MatchExpression, MatchStage,
+    Pipeline, Stage, UntaggedOperator, UntaggedOperatorName,
 };
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 pub struct SubpipelineFlatten;
 
@@ -87,7 +87,7 @@ impl Visitor for MatchMover {
         while i > 0 {
             let stage = std::mem::take(pipeline.pipeline.get_mut(i).unwrap()).walk(self);
             if let Stage::Match(MatchStage { expr, numbering }) = stage {
-                if visited.contains(&i) {
+                if visited.contains(&numbering.unwrap()) {
                     pipeline.pipeline[i] = Stage::Match(MatchStage { expr, numbering });
                     i -= 1;
                     continue;
@@ -169,6 +169,96 @@ fn move_match(
     );
 }
 
+struct SubpipelineMatchMover {
+    changed: bool,
+}
+
+impl Visitor for SubpipelineMatchMover {
+    fn visit_pipeline(&mut self, mut pipeline: Pipeline) -> Pipeline {
+        let mut i = 0;
+        loop {
+            // This needs to be inside the loop becuase the pipeline length can change
+            if i >= pipeline.pipeline.len() {
+                break;
+            }
+            // first walk the stage for recurisve subpipelines
+            pipeline.pipeline[i] = std::mem::take(pipeline.pipeline.get_mut(i).unwrap()).walk(self);
+            // now get a mutable reference to that stage. The borrow checker makes this a bit cumbersome
+            let mut stage = std::mem::take(pipeline.pipeline.get_mut(i).unwrap());
+            match stage {
+                // only supporting SubqueryLookup for now
+                Stage::Lookup(Lookup::Subquery(ref mut subquery)) => {
+                    let mut j = 0;
+                    // move all match stages at the beginning of the subpipeline into the parent
+                    // iff there are no field uses in the subpipeline, substitute any variable
+                    // uses. We need to use j here because it is possible that MatchMover ordered
+                    // the Matches in a way where one match may depend on fields and another does
+                    // not but the field depending Match is before the other Match.
+                    loop {
+                        // This needs to be inside the loop becuase the pipeline length can change
+                        if j >= subquery.pipeline.pipeline.len() {
+                            break;
+                        }
+                        let sub_stage = subquery.pipeline.pipeline.get_mut(j).unwrap();
+                        match sub_stage {
+                            Stage::Match(MatchStage { expr, numbering: _ }) => {
+                                let MatchExpression::Expr(MatchExpr { expr }) =
+                                    expr.into_iter().next().unwrap()
+                                else {
+                                    // TODO: perhaps handle other types of match stages, it
+                                    // basically won't work, however.
+                                    j += 1;
+                                    continue;
+                                };
+                                // If there are field uses, we cannot move the match stage because
+                                // they come from the subpipeline source
+                                if !expr.uses().is_empty() {
+                                    j += 1;
+                                    continue;
+                                }
+                                self.changed = true;
+                                let mut expr = *(std::mem::replace(
+                                    expr,
+                                    Box::new(Expression::Literal(LiteralValue::Null)),
+                                ));
+                                // If the subquery has a let body, substitute the variables in the
+                                // expression.
+                                if let Some(ref vars) = subquery.let_body {
+                                    expr = expr.variable_substitute(
+                                        vars.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+                                    );
+                                }
+                                subquery.pipeline.pipeline.remove(j);
+                                // we do not increment j because we removed the element
+                                pipeline.pipeline.insert(
+                                    i,
+                                    Stage::Match(MatchStage {
+                                        expr: vec![MatchExpression::Expr(MatchExpr {
+                                            expr: Box::new(expr),
+                                        })],
+                                        numbering: None,
+                                    }),
+                                );
+                                // i must increase because we have inserted in the parent pipeline
+                                i += 1;
+                            }
+                            // If we see a non-match stage we break because any matches following a
+                            // non-match must be blocked by the non-match
+                            _ => {
+                                break;
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+            pipeline.pipeline[i] = stage;
+            i += 1;
+        }
+        pipeline
+    }
+}
+
 struct MatchCoalescer;
 
 impl Visitor for MatchCoalescer {
@@ -225,11 +315,17 @@ impl Visitor for MatchCoalescer {
 
 pub fn rewrite_match_move(pipeline: Pipeline) -> Pipeline {
     let mut visitor = MatchSplitter;
-    let pipeline = visitor.visit_pipeline(pipeline);
+    let mut pipeline = visitor.visit_pipeline(pipeline);
     let mut visitor = SubpipelineFlatten;
-    let pipeline = visitor.visit_pipeline(pipeline);
-    let mut visitor = MatchMover;
-    let pipeline = visitor.visit_pipeline(pipeline);
+    pipeline = visitor.visit_pipeline(pipeline);
+    let mut changed = true;
+    while changed {
+        let mut visitor = MatchMover;
+        pipeline = visitor.visit_pipeline(pipeline);
+        let mut visitor = SubpipelineMatchMover { changed: false };
+        pipeline = visitor.visit_pipeline(pipeline);
+        changed = visitor.changed;
+    }
     let mut visitor = MatchCoalescer;
     visitor.visit_pipeline(pipeline)
 }

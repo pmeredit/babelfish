@@ -22,6 +22,14 @@ impl Uses {
             })
         })
     }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
 }
 
 struct UsesVisitor {
@@ -37,14 +45,65 @@ impl VisitorRef for UsesVisitor {
     }
 }
 
+struct VarUsesVisitor {
+    u: HashSet<String>,
+}
+
+impl VisitorRef for VarUsesVisitor {
+    fn visit_expression(&mut self, expression: &Expression) {
+        expression.walk_ref(self);
+        if let Expression::Ref(Ref::VariableRef(s)) = expression {
+            self.u.insert(s.clone());
+        }
+    }
+}
+
 struct SubstituteVisitor {
     theta: HashMap<String, Expression>,
 }
 
+// TODO: we may want to use Refs for substitution rather than splitting implementation for
+// Variables and Fields
 impl Visitor for SubstituteVisitor {
     fn visit_expression(&mut self, expression: Expression) -> Expression {
         match expression {
             Expression::Ref(Ref::FieldRef(ref s)) => {
+                let path = s.split('.').collect::<Vec<_>>();
+                let mut current_path = path[0].to_string();
+                for (i, part) in path.iter().enumerate().skip(1) {
+                    if let Some(expr) = self.theta.get(&current_path) {
+                        if i == path.len() - 1 {
+                            return expr.clone();
+                        }
+                        let mut ret = expr.clone();
+                        for part in path.iter().skip(i) {
+                            ret = Expression::TaggedOperator(TaggedOperator::GetField(GetField {
+                                input: Box::new(ret),
+                                field: part.to_string(),
+                            }));
+                        }
+                        return ret;
+                    }
+                    current_path = format!("{}.{}", current_path, part);
+                }
+                if let Some(expr) = self.theta.get(&current_path) {
+                    return expr.clone();
+                }
+                expression
+            }
+            _ => expression.walk(self),
+        }
+    }
+}
+
+struct VarSubstituteVisitor {
+    theta: HashMap<String, Expression>,
+}
+
+impl Visitor for VarSubstituteVisitor {
+    fn visit_expression(&mut self, expression: Expression) -> Expression {
+        match expression {
+            Expression::Ref(Ref::VariableRef(ref s)) => {
                 let path = s.split('.').collect::<Vec<_>>();
                 let mut current_path = path[0].to_string();
                 for (i, part) in path.iter().enumerate().skip(1) {
@@ -80,8 +139,19 @@ impl Expression {
         Uses(visitor.u)
     }
 
+    pub fn variable_uses(&self) -> Uses {
+        let mut visitor = VarUsesVisitor { u: HashSet::new() };
+        visitor.visit_expression(self);
+        Uses(visitor.u)
+    }
+
     pub fn substitute(self, theta: HashMap<String, Expression>) -> Expression {
         let mut visitor = SubstituteVisitor { theta };
+        visitor.visit_expression(self)
+    }
+
+    pub fn variable_substitute(self, theta: HashMap<String, Expression>) -> Expression {
+        let mut visitor = VarSubstituteVisitor { theta };
         visitor.visit_expression(self)
     }
 }

@@ -13,10 +13,14 @@
     {"$lookup": 
         {
             "from": "collection",
+            "let": {"l": "$life"},
             "pipeline": [
                 {"$match": {
                     "$expr": {"$eq": ["$status", "A"]},
                     "$expr": {"$eq": ["$type", "B"]}
+                }},
+                {"$match": {
+                    "$expr": {"$eq": ["$$l", "the answer"]}
                 }},
                 {"$project": {
                     "status": 1,
