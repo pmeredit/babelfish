@@ -1,0 +1,36 @@
+[
+    {"$assemble": {
+        "erd": "./assets/schema.json",
+        "entity": "Customer",
+        "project": ["customerName", "customerAddress"],
+        "subassemble": [
+        {
+            "entity": "Account",
+            "join": "left",
+            "project": ["accountId", "accountName"],
+            "filter": {"$and": [
+                {"$eq": ["$Customer.customerId", "$Account._id"]},  
+                {"$gt": ["$Customer.customerName", "K"]}
+            ]},
+            "subassemble": [
+                {
+                    "entity": "Invoice",
+                    "join": "inner",
+                    "project": ["invoiceNumber", "orderId"],
+                    "filter": {
+                        "$eq": ["$Customer.orderId", "$Invoice.orderId"]
+                    }
+                }
+            ]
+        },
+        {
+            "entity": "Order",
+            "join": "inner",
+            "project": ["orderId", "orderDate"],
+            "filter": {
+                "$eq": ["$Order.orderId", "$Customer.customerName"]
+            }
+        }
+        ]
+    }}
+]
