@@ -9,7 +9,7 @@
             "join": "left",
             "project": ["accountId", "accountName"],
             "filter": {"$and": [
-                {"$eq": ["$Customer.customerId", "$Account._id"]},  
+                {"$eq": ["$Customer._id", "$Account.customerId"]},
                 {"$gt": ["$Customer.customerName", "K"]}
             ]},
             "subassemble": [

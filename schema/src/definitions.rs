@@ -57,6 +57,10 @@ impl Entity {
     pub fn can_contain_field(&self, field: &str) -> bool {
         self.json_schema.can_contain_field(field)
     }
+
+    pub fn get_references(&self) -> Option<&BTreeMap<String, Reference>> {
+        self.json_schema.references()
+    }
 }
 
 fn deserialize_json_schema<'de, D>(deserializer: D) -> Result<Schema, D::Error>
