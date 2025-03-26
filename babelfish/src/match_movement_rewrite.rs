@@ -71,12 +71,21 @@ impl Visitor for MatchMover {
     fn visit_pipeline(&mut self, mut pipeline: Pipeline) -> Pipeline {
         let len = pipeline.pipeline.len();
         let mut i = len - 1;
-        // the most swaps we can do is the number of len * len of pipeline.
-        // TODO: figure out a better termination condition, perhaps a set of visited stages? yuck
-        let mut total_swaps = len * len;
         // we never move the first stage
-        while i > 0 && total_swaps > 0 {
-            total_swaps -= 1;
+        while i > 0 {
+            // If all the stages at the beginning of the pipeline are already matches, we can stop,
+            // this unfortunately seems to be the cheapest way to compute the stop condition when
+            // we get to a situation where we are constantly swapping matches. Note that if the
+            // first stage in the final pipeline is not a match due to opaque defines, we will stop
+            // on the i == 0 check.
+            if pipeline
+                .pipeline
+                .iter()
+                .take(i)
+                .all(|stage| matches!(stage, Stage::Match(_)))
+            {
+                break;
+            }
             let stage = std::mem::take(pipeline.pipeline.get_mut(i).unwrap()).walk(self);
             println!(
                 "i: {i}, stage: {}",
