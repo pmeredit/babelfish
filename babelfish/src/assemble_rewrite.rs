@@ -1,14 +1,15 @@
 use ast::{
     definitions::{
-        visitor::Visitor, AssembleJoinType, EqualityLookup, Expression, Lookup, LookupFrom,
-        MatchExpr, MatchExpression, MatchStage, Pipeline, ProjectItem, ProjectStage, Ref, Stage,
-        Subassemble, SubqueryLookup, Unwind, UnwindExpr,
+        visitor::Visitor, Assemble, AssembleJoinType, EqualityLookup, Expression, Lookup,
+        LookupFrom, MatchExpr, MatchExpression, MatchStage, Pipeline, ProjectItem, ProjectStage,
+        Ref, Stage, Subassemble, SubqueryLookup, Unwind, UnwindExpr,
     },
     map,
 };
 use linked_hash_map::LinkedHashMap;
 use schema::{ConstraintType, Direction, Entity, Erd, Relationship};
 use std::collections::BTreeMap;
+use tailcall::tailcall;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -29,6 +30,8 @@ pub enum Error {
     ReferenceKeyNotFound(String),
     #[error("Embedded constraints must have targetPath: {0}")]
     MissingTargetPathInEmbedded(String),
+    #[error("Project key {0} not found in entity: {1}")]
+    ProjectKeyNotFound(String, String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -51,139 +54,6 @@ macro_rules! print_json {
     ($v:expr) => {
         serde_json::to_string_pretty($v).unwrap()
     };
-}
-
-fn handle_embedded_constraint(
-    entity_name: &str,
-    reference: &schema::Reference,
-    subassemble: &Subassemble,
-) -> Result<Vec<Stage>> {
-    match reference.relationship_type {
-        Relationship::Many => {
-            let Some(target_path) = reference.storage_constraints[0].target_path.clone() else {
-                return Err(Error::MissingTargetPathInEmbedded(print_json!(
-                    &reference.storage_constraints[0]
-                )));
-            };
-            Ok(vec![
-                Stage::Unwind(Unwind::Document(UnwindExpr {
-                    path: Expression::Ref(Ref::FieldRef(target_path.clone())).into(),
-                    preserve_null_and_empty_arrays: Some(
-                        subassemble.join == Some(AssembleJoinType::Left),
-                    ),
-                    include_array_index: None,
-                })),
-                Stage::AddFields(map! {
-                    entity_name.to_string() => Expression::Ref(Ref::FieldRef(target_path.clone())),
-                }),
-                Stage::Project(ProjectStage {
-                    items: map! {
-                        target_path => ProjectItem::Exclusion,
-                    },
-                }),
-            ])
-        }
-        Relationship::One => Ok(vec![]),
-    }
-}
-
-struct ReplaceVisitor {
-    entity_prefix: String,
-}
-
-impl Visitor for ReplaceVisitor {
-    fn visit_expression(&mut self, expression: Expression) -> Expression {
-        match expression {
-            Expression::Ref(Ref::FieldRef(s)) => {
-                if s.starts_with(&self.entity_prefix) {
-                    Expression::Ref(Ref::VariableRef(s))
-                } else {
-                    Expression::Ref(Ref::FieldRef(s))
-                }
-            }
-            _ => expression.walk(self),
-        }
-    }
-}
-
-fn replace_with_variable(expression: Expression, entity_name: &str) -> Expression {
-    let mut visitor = ReplaceVisitor {
-        entity_prefix: format!("{}.", entity_name),
-    };
-    visitor.visit_expression(expression)
-}
-
-//fn handle_reference_constraint(
-//    entity_name: &str,
-//    subassemble_entity: &str,
-//    subassemble_join: Option<AssembleJoinType>,
-//) -> Result<Vec<Stage>> {
-//    // TODO: Handle checking and entity names that do not match collection names
-//    let pipeline = if let Some(matcher) = partition.right {
-//        let matcher = replace_with_variable(matcher, entity_name);
-//        vec![Stage::Match(MatchStage {
-//            expr: vec![MatchExpression::Expr(MatchExpr {
-//                expr: Box::new(matcher),
-//            })],
-//        })]
-//    } else {
-//        vec![]
-//    };
-//    let mut output = if let Some(matcher) = partition.left {
-//        vec![Stage::Match(MatchStage {
-//            expr: vec![MatchExpression::Expr(MatchExpr {
-//                expr: Box::new(matcher),
-//            })],
-//        })]
-//    } else {
-//        vec![]
-//    };
-//    output.push(Stage::Lookup(Lookup::Subquery(SubqueryLookup {
-//        from: Some(LookupFrom::Collection(subassemble_entity.to_string())),
-//        let_body: Some(map! {
-//            entity_name.to_string() => Expression::Ref(Ref::FieldRef(entity_name.to_string())),
-//        }),
-//        pipeline: Pipeline { pipeline },
-//        as_var: subassemble_entity.to_string(),
-//    })));
-//    output.push(Stage::Unwind(Unwind::Document(UnwindExpr {
-//        path: Box::new(Expression::Ref(Ref::FieldRef(
-//            subassemble_entity.to_string(),
-//        ))),
-//        include_array_index: None,
-//        preserve_null_and_empty_arrays: Some(subassemble_join == Some(AssembleJoinType::Left)),
-//    })));
-//    Ok(output)
-//}
-
-fn handle_subassemble(
-    entity_name: &str,
-    subassemble: Subassemble,
-    entities: &BTreeMap<String, Entity>,
-) -> Result<(Vec<Stage>, Vec<String>)> {
-    let mut output = Vec::new();
-    let subassemble_entity = entities
-        .get(&subassemble.entity)
-        .ok_or(Error::EntityMissingFromErd(subassemble.entity.to_string()))?;
-    //  let filter_partition = subassemble
-    //      .filter
-    //       .unwrap()
-    //      .filter_partition(entity_name, subassemble.entity.as_str());
-    // TODO:: Handle embedded constraints again
-    //output.extend(handle_reference_constraint(
-    //    entity_name,
-    //    &subassemble.entity,
-    //    subassemble.join,
-    //    filter_partition,
-    //)?);
-    Ok((
-        output,
-        subassemble
-            .project
-            .into_iter()
-            .map(|x| format!("{}.{}", subassemble.entity, x))
-            .collect(),
-    ))
 }
 
 fn handle_project(project: Vec<String>) -> Stage {
@@ -243,23 +113,7 @@ impl Visitor for AssembleRewrite {
                         "_id".to_string() => ProjectItem::Exclusion,
                     },
                 })];
-                let mut project_keys = a
-                    .project
-                    .into_iter()
-                    .map(|x| format!("{}.{}", a.entity, x))
-                    .collect::<Vec<_>>();
-                for subassemble in a.subassemble.into_iter() {
-                    let ret = handle_subassemble(&a.entity, subassemble, &entities);
-                    if let Err(e) = ret {
-                        self.error = Some(e);
-                        return Stage::SubPipeline(Pipeline {
-                            pipeline: Vec::new(),
-                        });
-                    }
-                    let (stages, keys) = ret.unwrap();
-                    project_keys.extend(keys.into_iter());
-                    output.extend(stages.into_iter());
-                }
+                let project_keys = handle_error!(check_and_collect_project_keys(a, &entities));
                 output.push(handle_project(project_keys));
                 Stage::SubPipeline(Pipeline { pipeline: output })
             }
@@ -281,4 +135,47 @@ impl Visitor for AssembleRewrite {
                 .collect(),
         }
     }
+}
+
+fn check_and_collect_project_keys(
+    assemble: Assemble,
+    entities: &BTreeMap<String, Entity>,
+) -> Result<Vec<String>> {
+    let mut ret = Vec::new();
+    check_and_collect_project_keys_aux(
+        assemble.entity.as_str(),
+        assemble.project,
+        Some(assemble.subassemble),
+        entities,
+        &mut ret,
+    )?;
+    Ok(ret)
+}
+
+fn check_and_collect_project_keys_aux(
+    entity_name: &str,
+    project: Vec<String>,
+    subassembles: Option<Vec<Subassemble>>,
+    entities: &BTreeMap<String, Entity>,
+    ret: &mut Vec<String>,
+) -> Result<()> {
+    let entity = entities
+        .get(entity_name)
+        .ok_or(Error::EntityMissingFromErd(entity_name.to_string()))?;
+    for field in project {
+        if !entity.json_schema.can_contain_field(field.as_str()) {
+            return Err(Error::ProjectKeyNotFound(field, print_json!(entity)));
+        }
+        ret.push(format!("{}.{}", entity_name, field));
+    }
+    for subassemble in subassembles.into_iter().flatten() {
+        check_and_collect_project_keys_aux(
+            subassemble.entity.as_str(),
+            subassemble.project,
+            subassemble.subassemble,
+            entities,
+            ret,
+        )?;
+    }
+    Ok(())
 }

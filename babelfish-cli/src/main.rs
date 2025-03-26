@@ -46,7 +46,18 @@ struct Cli {
     match_move: Option<String>,
 }
 
-fn main() -> Result<(), CliError> {
+fn main() {
+    if let Err(e) = run() {
+        match e {
+            CliError::Io(e) => eprintln!("IO error: {}", e),
+            CliError::Bson(e) => eprintln!("Bson error: {}", e),
+            CliError::Json(e) => eprintln!("Json error: {}", e),
+            CliError::Babelfish(e) => println!("Babelfish error: {}", e),
+        }
+    }
+}
+
+fn run() -> Result<(), CliError> {
     let args = Cli::parse();
 
     if let Some(erd_file) = &args.erd_file {

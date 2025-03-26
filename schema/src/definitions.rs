@@ -92,6 +92,13 @@ impl Schema {
             _ => None,
         }
     }
+
+    pub fn can_contain_field(&self, field: &str) -> bool {
+        match self {
+            Schema::Document(d) => d.keys.contains_key(field) || d.additional_properties,
+            _ => false,
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, Default, Serialize, Deserialize)]
