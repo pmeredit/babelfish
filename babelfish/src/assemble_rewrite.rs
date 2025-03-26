@@ -56,25 +56,6 @@ macro_rules! print_json {
     };
 }
 
-fn handle_project(project: Vec<String>) -> Stage {
-    let mut found_id = false;
-    let mut project_items = project
-        .into_iter()
-        .map(|projection| {
-            if projection == "_id" {
-                found_id = true
-            };
-            (projection, ProjectItem::Inclusion)
-        })
-        .collect::<LinkedHashMap<_, _>>();
-    if !found_id {
-        project_items.insert("_id".to_string(), ProjectItem::Exclusion);
-    }
-    Stage::Project(ProjectStage {
-        items: project_items,
-    })
-}
-
 impl Visitor for AssembleRewrite {
     // visit_stage is here to handle Assemble stages and replace them with SubPipelines
     fn visit_stage(&mut self, stage: Stage) -> Stage {
@@ -97,24 +78,31 @@ impl Visitor for AssembleRewrite {
             };
         }
         match stage {
-            Stage::Assemble(a) => {
+            Stage::Assemble(mut a) => {
                 let erd_json = handle_error!(std::fs::read_to_string(&a.erd)
                     .map_err(|_| Error::CouldNotFindErd(a.erd.clone())));
                 let erd: Erd =
                     handle_error!(serde_json::from_str(&erd_json).map_err(Error::CouldNotParseErd));
                 let entities = erd.entities;
-                // TODO: use input entity for checking
-                let _input_entity = handle_error!(entities
-                    .get(&a.entity)
-                    .ok_or(Error::EntityMissingFromErd(a.entity.clone())));
+                let root_entity = handle_error!(entities
+                    .get(a.entity.as_str())
+                    .ok_or_else(|| Error::EntityMissingFromErd(a.entity.clone())));
                 let mut output = vec![Stage::Project(ProjectStage {
                     items: map! {
                         a.entity.clone() => ProjectItem::Assignment(Expression::Ref(Ref::VariableRef("ROOT".to_string()))),
                         "_id".to_string() => ProjectItem::Exclusion,
                     },
                 })];
+                let subassembles = std::mem::take(&mut a.subassemble);
+                for assemble in subassembles {
+                    output.push(handle_error!(generate_subassemble(
+                        vec![root_entity],
+                        assemble,
+                        &entities
+                    )));
+                }
                 let project_keys = handle_error!(check_and_collect_project_keys(a, &entities));
-                output.push(handle_project(project_keys));
+                output.push(generate_project(project_keys));
                 Stage::SubPipeline(Pipeline { pipeline: output })
             }
             _ => stage,
@@ -178,4 +166,31 @@ fn check_and_collect_project_keys_aux(
         )?;
     }
     Ok(())
+}
+
+fn generate_project(project: Vec<String>) -> Stage {
+    let mut found_id = false;
+    let mut project_items = project
+        .into_iter()
+        .map(|projection| {
+            if projection == "_id" {
+                found_id = true
+            };
+            (projection, ProjectItem::Inclusion)
+        })
+        .collect::<LinkedHashMap<_, _>>();
+    if !found_id {
+        project_items.insert("_id".to_string(), ProjectItem::Exclusion);
+    }
+    Stage::Project(ProjectStage {
+        items: project_items,
+    })
+}
+
+fn generate_subassemble(
+    parent_entities: Vec<&Entity>,
+    subassemble: Subassemble,
+    entities: &BTreeMap<String, Entity>,
+) -> Result<Stage> {
+    Ok(Stage::Sentinel)
 }
