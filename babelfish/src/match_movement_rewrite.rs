@@ -69,6 +69,8 @@ impl Visitor for MatchSplitter {
 
 struct MatchMover;
 
+// TODO: Support moving matches out of subpipelines, probably easiest to do as a separate pass with
+// a changed output that we can then iterator to fix point with MatchMover
 impl Visitor for MatchMover {
     fn visit_pipeline(&mut self, mut pipeline: Pipeline) -> Pipeline {
         // first number the match stages so that we do not continually swap multiple moves with
