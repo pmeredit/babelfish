@@ -30,6 +30,10 @@ impl Uses {
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
+
+    pub fn into_iter(self) -> impl IntoIterator<Item = String> {
+        self.0.into_iter()
+    }
 }
 
 struct UsesVisitor {

@@ -4,11 +4,11 @@ use ast::{
         LookupFrom, MatchExpr, MatchExpression, MatchStage, Pipeline, ProjectItem, ProjectStage,
         Ref, Stage, Subassemble, SubqueryLookup, Unwind, UnwindExpr,
     },
-    map,
+    map, set,
 };
 use linked_hash_map::LinkedHashMap;
 use schema::{ConstraintType, Direction, Entity, Erd, Relationship};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use tailcall::tailcall;
 use thiserror::Error;
 
@@ -32,6 +32,10 @@ pub enum Error {
     MissingTargetPathInEmbedded(String),
     #[error("Project key {0} not found in entity: {1}")]
     ProjectKeyNotFound(String, String),
+    #[error("Field in filter has no entity: {0}, filter: {1}")]
+    FieldInFilterHasNoEntity(String, String),
+    #[error("Field {0} not found in entity: {1} or parent entities: {2}")]
+    FieldNotFoundInEntityOrParents(String, String, String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -96,7 +100,7 @@ impl Visitor for AssembleRewrite {
                 let subassembles = std::mem::take(&mut a.subassemble);
                 for assemble in subassembles {
                     output.push(handle_error!(generate_subassemble(
-                        map! {a.entity.to_string() => root_entity},
+                        set! {a.entity.to_string()},
                         assemble,
                         &entities
                     )));
@@ -188,9 +192,32 @@ fn generate_project(project: Vec<String>) -> Stage {
 }
 
 fn generate_subassemble(
-    parent_entities: HashMap<String, &Entity>,
+    parent_entities: HashSet<String>,
     subassemble: Subassemble,
     entities: &HashMap<String, Entity>,
 ) -> Result<Stage> {
-    Ok(Stage::Sentinel)
+    let mut pipeline = Vec::new();
+    if subassemble.filter.is_none() {
+        return Err(Error::MissingFilterInSubassemble(
+            subassemble.entity.clone(),
+        ));
+    }
+    let filter = subassemble.filter.unwrap();
+    for u in filter.uses().into_iter() {
+        let u_split: Vec<_> = u.split('.').collect();
+        if u_split.len() < 2 {
+            return Err(Error::FieldInFilterHasNoEntity(u, print_json!(&filter)));
+        }
+        let entity_name = u_split[0];
+        if entity_name != subassemble.entity {
+            if !parent_entities.contains(entity_name) {
+                return Err(Error::FieldNotFoundInEntityOrParents(
+                    u,
+                    subassemble.entity.to_owned(),
+                    format!("{:?}", parent_entities),
+                ));
+            }
+        }
+    }
+    Ok(Stage::SubPipeline(Pipeline { pipeline: pipeline }))
 }
