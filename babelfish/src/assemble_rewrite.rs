@@ -8,7 +8,7 @@ use ast::{
 };
 use linked_hash_map::LinkedHashMap;
 use schema::{ConstraintType, Direction, Entity, Erd, Relationship};
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use tailcall::tailcall;
 use thiserror::Error;
 
@@ -96,7 +96,7 @@ impl Visitor for AssembleRewrite {
                 let subassembles = std::mem::take(&mut a.subassemble);
                 for assemble in subassembles {
                     output.push(handle_error!(generate_subassemble(
-                        vec![root_entity],
+                        map! {a.entity.to_string() => root_entity},
                         assemble,
                         &entities
                     )));
@@ -127,7 +127,7 @@ impl Visitor for AssembleRewrite {
 
 fn check_and_collect_project_keys(
     assemble: Assemble,
-    entities: &BTreeMap<String, Entity>,
+    entities: &HashMap<String, Entity>,
 ) -> Result<Vec<String>> {
     let mut ret = Vec::new();
     check_and_collect_project_keys_aux(
@@ -144,14 +144,14 @@ fn check_and_collect_project_keys_aux(
     entity_name: &str,
     project: Vec<String>,
     subassembles: Option<Vec<Subassemble>>,
-    entities: &BTreeMap<String, Entity>,
+    entities: &HashMap<String, Entity>,
     ret: &mut Vec<String>,
 ) -> Result<()> {
     let entity = entities
         .get(entity_name)
         .ok_or(Error::EntityMissingFromErd(entity_name.to_string()))?;
     for field in project {
-        if !entity.json_schema.can_contain_field(field.as_str()) {
+        if !entity.can_contain_field(field.as_str()) {
             return Err(Error::ProjectKeyNotFound(field, print_json!(entity)));
         }
         ret.push(format!("{}.{}", entity_name, field));
@@ -188,9 +188,9 @@ fn generate_project(project: Vec<String>) -> Stage {
 }
 
 fn generate_subassemble(
-    parent_entities: Vec<&Entity>,
+    parent_entities: HashMap<String, &Entity>,
     subassemble: Subassemble,
-    entities: &BTreeMap<String, Entity>,
+    entities: &HashMap<String, Entity>,
 ) -> Result<Stage> {
     Ok(Stage::Sentinel)
 }

@@ -5,7 +5,7 @@ use lazy_static::lazy_static;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashSet;
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashMap},
     fmt::{Display, Formatter},
     iter::once,
 };
@@ -39,7 +39,7 @@ pub enum Error {
 #[serde(rename_all = "camelCase")]
 pub struct Erd {
     pub schema_name: String,
-    pub entities: BTreeMap<String, Entity>,
+    pub entities: HashMap<String, Entity>,
 }
 
 #[derive(PartialEq, Debug, Clone, Default, Serialize, Deserialize)]
@@ -51,6 +51,12 @@ pub struct Entity {
     #[serde(deserialize_with = "deserialize_json_schema")]
     #[serde(serialize_with = "serialize_json_schema")]
     pub json_schema: Schema,
+}
+
+impl Entity {
+    pub fn can_contain_field(&self, field: &str) -> bool {
+        self.json_schema.can_contain_field(field)
+    }
 }
 
 fn deserialize_json_schema<'de, D>(deserializer: D) -> Result<Schema, D::Error>
