@@ -193,12 +193,14 @@ impl ReplaceStage {
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct MatchStage {
     pub expr: Vec<MatchExpression>,
+    pub numbering: Option<usize>,
 }
 
 impl MatchStage {
     pub fn with_capacity(capacity: usize) -> MatchStage {
         MatchStage {
             expr: Vec::with_capacity(capacity),
+            numbering: None,
         }
     }
 

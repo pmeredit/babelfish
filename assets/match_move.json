@@ -29,6 +29,7 @@
     {"$match": {
         "$expr": {"$and": [
             {"$eq": ["$collection.foo", "A"]},
+            {"$eq": ["$collection", "A"]},
             {"$eq": ["$type", "D"]}
         ]}
     }}

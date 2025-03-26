@@ -28,7 +28,7 @@ pub struct MatchSplitter;
 impl Visitor for MatchSplitter {
     fn visit_stage(&mut self, stage: Stage) -> Stage {
         match stage {
-            Stage::Match(MatchStage { expr }) => {
+            Stage::Match(MatchStage { expr, .. }) => {
                 let mut stages = vec![];
                 for e in expr {
                     match e {
@@ -44,6 +44,7 @@ impl Visitor for MatchSplitter {
                                         expr: vec![MatchExpression::Expr(MatchExpr {
                                             expr: Box::new(arg),
                                         })],
+                                        numbering: None,
                                     }));
                                 }
                             } else {
@@ -51,6 +52,7 @@ impl Visitor for MatchSplitter {
                                     expr: vec![MatchExpression::Expr(MatchExpr {
                                         expr: Box::new(expr),
                                     })],
+                                    numbering: None,
                                 }));
                             }
                         }
@@ -69,34 +71,29 @@ struct MatchMover;
 
 impl Visitor for MatchMover {
     fn visit_pipeline(&mut self, mut pipeline: Pipeline) -> Pipeline {
+        // first number the match stages so that we do not continually swap multiple moves with
+        // each other.
+        for (i, stage) in pipeline.pipeline.iter_mut().enumerate() {
+            if let Stage::Match(MatchStage { expr: _, numbering }) = stage {
+                *numbering = Some(i);
+            }
+        }
         let len = pipeline.pipeline.len();
         let mut i = len - 1;
+        let mut visited = HashSet::new();
         // we never move the first stage
         while i > 0 {
-            // If all the stages at the beginning of the pipeline are already matches, we can stop,
-            // this unfortunately seems to be the cheapest way to compute the stop condition when
-            // we get to a situation where we are constantly swapping matches. Note that if the
-            // first stage in the final pipeline is not a match due to opaque defines, we will stop
-            // on the i == 0 check.
-            if pipeline
-                .pipeline
-                .iter()
-                .take(i)
-                .all(|stage| matches!(stage, Stage::Match(_)))
-            {
-                break;
-            }
             let stage = std::mem::take(pipeline.pipeline.get_mut(i).unwrap()).walk(self);
-            println!(
-                "i: {i}, stage: {}",
-                serde_json::to_string_pretty(&stage).unwrap()
-            );
-            if let Stage::Match(MatchStage { expr }) = stage {
-                if !move_match(expr, &mut pipeline, i) {
+            if let Stage::Match(MatchStage { expr, numbering }) = stage {
+                if visited.contains(&i) {
+                    pipeline.pipeline[i] = Stage::Match(MatchStage { expr, numbering });
+                    i -= 1;
+                    continue;
+                }
+                visited.insert(numbering.unwrap());
+                if !move_match(expr, &mut pipeline, i, numbering) {
                     i -= 1;
                 }
-                // do not decrement i here, because i could not be a stage that was moved down when
-                // we moved the match up.
             } else {
                 pipeline.pipeline[i] = stage;
                 i -= 1;
@@ -107,10 +104,18 @@ impl Visitor for MatchMover {
 }
 
 // TODO: in the future we may want to support more users instead of just Match, like in mongosql
-fn move_match(mut expr: Vec<MatchExpression>, pipeline: &mut Pipeline, i: usize) -> bool {
+fn move_match(
+    mut expr: Vec<MatchExpression>,
+    pipeline: &mut Pipeline,
+    i: usize,
+    numbering: Option<usize>,
+) -> bool {
     macro_rules! terminal_case {
         ($expr:expr, $idx:expr, $moved:expr) => {{
-            pipeline.pipeline[$idx] = Stage::Match(MatchStage { expr: $expr });
+            pipeline.pipeline[$idx] = Stage::Match(MatchStage {
+                expr: $expr,
+                numbering,
+            });
             return $moved;
         }};
     }
@@ -171,7 +176,7 @@ impl Visitor for MatchCoalescer {
         for stage in pipeline.pipeline.into_iter() {
             let stage = stage.walk(self);
             match stage {
-                Stage::Match(MatchStage { expr }) => {
+                Stage::Match(MatchStage { expr, .. }) => {
                     let MatchExpression::Expr(MatchExpr { expr }) =
                         expr.into_iter().next().unwrap()
                     else {
@@ -190,7 +195,10 @@ impl Visitor for MatchCoalescer {
                                 args: current_match,
                             })),
                         })];
-                        out.push(Stage::Match(MatchStage { expr }));
+                        out.push(Stage::Match(MatchStage {
+                            expr,
+                            numbering: None,
+                        }));
                         current_match = Vec::new();
                     }
                     out.push(stage);
@@ -204,7 +212,10 @@ impl Visitor for MatchCoalescer {
                     args: current_match,
                 })),
             })];
-            out.push(Stage::Match(MatchStage { expr }));
+            out.push(Stage::Match(MatchStage {
+                expr,
+                numbering: None,
+            }));
         }
         Pipeline { pipeline: out }
     }
