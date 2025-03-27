@@ -8,7 +8,10 @@
             "entity": "Bar",
             "join": "inner",
             "project": ["_id"],
-            "filter": {"$eq": ["$Foo.barId", "$Bar._id"]}
+            "filter": {"$and": [
+                {"$eq": ["$Foo.barId", "$Bar._id"]},
+                {"$gt": ["$Foo._id", "5f0f5f3b1f6f6e001f1f6f7f"]}
+            ]}
         }]
     }},
     {"$limit": 10},
