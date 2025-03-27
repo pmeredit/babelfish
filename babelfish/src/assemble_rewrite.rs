@@ -309,9 +309,15 @@ fn generate_subassemble(
             from: Some(LookupFrom::Collection(collection)),
             let_body: Some(map! {input_entity_name.clone() => Expression::Ref(Ref::FieldRef(input_entity_name.clone()))}),
             pipeline: Pipeline { pipeline: vec![
+                Stage::Project(ProjectStage {
+                    items: map! {
+                        subassemble.entity.clone() => ProjectItem::Assignment(Expression::Ref(Ref::VariableRef("ROOT".to_string()))),
+                        "_id".to_string() => ProjectItem::Exclusion,
+                    },
+                }),
                 Stage::Match(MatchStage {
                     expr: vec![MatchExpression::Expr(MatchExpr {
-                        expr: Box::new(filter.clone()),
+                        expr: Box::new(filter.clone().substitute(map! {input_entity_name.clone() => Expression::Ref(Ref::VariableRef(input_entity_name.clone()))})),
                     })],
                     numbering: None,
                 }),
