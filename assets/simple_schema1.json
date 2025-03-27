@@ -69,7 +69,7 @@
         "Baz":
         {
             "db": "company",
-            "collection": "bar",
+            "collection": "baz",
             "primaryKey": "_id",
             "jsonSchema": {
                 "bsonType": "object",
