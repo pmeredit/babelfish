@@ -207,6 +207,57 @@ fn generate_project(project: Vec<String>) -> Stage {
     })
 }
 
+fn get_filter_uses(filter: &Expression) -> Result<HashMap<String, Vec<String>>> {
+    let mut filter_uses = HashMap::new();
+    for u in filter.uses().into_iter() {
+        let u_split: Vec<_> = u.split('.').map(|x| x.to_string()).collect();
+        if u_split.len() < 2 {
+            return Err(Error::FieldInFilterHasNoEntity(u, print_json!(&filter)));
+        }
+        let entity_name = &u_split[0];
+        let field = u_split[1..].join(".");
+        if !filter_uses.contains_key(entity_name) {
+            filter_uses.insert(entity_name.clone(), vec![field]);
+        } else {
+            filter_uses.get_mut(entity_name).unwrap().push(field);
+        }
+    }
+    Ok(filter_uses)
+}
+
+fn gather_constraints(
+    filter_uses: HashMap<String, Vec<String>>,
+    entities: &HashMap<String, Entity>,
+    subassemble_entity: &Entity,
+) -> Result<HashSet<(ConstraintType, Option<String>, String)>> {
+    // Gather constraints using a set to avoid duplicates
+    let mut constraints = HashSet::new();
+    for (entity_name, fields) in filter_uses.into_iter() {
+        let entity = entities
+            .get(&entity_name)
+            .ok_or_else(|| Error::EntityMissingFromErd(entity_name.clone()))?;
+        let references = entity
+            .get_references()
+            .ok_or_else(|| Error::NoReferencesInErd(entity_name.clone()))?;
+        for field in fields {
+            if let Some(r) = references.get(&field) {
+                let storage_constraint = r.storage_constraints.first().ok_or_else(|| {
+                    Error::StorageConstraintsNotFoundInEntity(
+                        field.clone(),
+                        print_json!(subassemble_entity),
+                    )
+                })?;
+                let target_path = storage_constraint
+                    .target_path
+                    .as_ref()
+                    .map(|tp| format!("{entity_name}.{tp}"));
+                constraints.insert((storage_constraint.constraint_type, target_path, field));
+            }
+        }
+    }
+    Ok(constraints)
+}
+
 fn generate_subassemble(
     mut grandparent_entities: HashSet<String>,
     parent_entity: &str,
@@ -221,55 +272,17 @@ fn generate_subassemble(
     }
     let join = subassemble.join.unwrap_or(AssembleJoinType::Inner);
     let filter = subassemble.filter.clone().unwrap();
-    let mut filter_uses = HashMap::new();
-    for u in filter.uses().into_iter() {
-        let u_split: Vec<_> = u.split('.').map(|x| x.to_string()).collect();
-        if u_split.len() < 2 {
-            return Err(Error::FieldInFilterHasNoEntity(u, print_json!(&filter)));
-        }
-        let entity_name = &u_split[0];
-        if !grandparent_entities.contains(entity_name)
-            && entity_name != parent_entity
-            && entity_name != subassemble.entity.as_str()
-        {
-            return Err(Error::EntityNotInScope(entity_name.to_string()));
-        }
-        let field = u_split[1..].join(".");
-        if !filter_uses.contains_key(entity_name) {
-            filter_uses.insert(entity_name.clone(), vec![field]);
-        } else {
-            filter_uses.get_mut(entity_name).unwrap().push(field);
-        }
-    }
+    let filter_uses = get_filter_uses(&filter)?;
 
     let subassemble_entity = entities
         .get(subassemble.entity.as_str())
         .ok_or_else(|| Error::EntityMissingFromErd(subassemble.entity.clone()))?;
-    // Gather constraints using a set to avoid duplicates
-    let mut constraints = HashSet::new();
-    for (entity_name, fields) in filter_uses.iter() {
-        let entity = entities
-            .get(entity_name)
-            .ok_or_else(|| Error::EntityMissingFromErd(entity_name.clone()))?;
-        let references = entity
-            .get_references()
-            .ok_or_else(|| Error::NoReferencesInErd(entity_name.clone()))?;
-        for field in fields {
-            if let Some(r) = references.get(field) {
-                let storage_constraint = r.storage_constraints.first().ok_or_else(|| {
-                    Error::StorageConstraintsNotFoundInEntity(
-                        field.clone(),
-                        print_json!(&subassemble_entity),
-                    )
-                })?;
-                let target_path = storage_constraint.target_path.as_ref().map(|tp| format!("{entity_name}.{tp}"));
-                constraints.insert((storage_constraint.constraint_type, target_path, field));
-            }
-        }
-    }
+
+    let constraints = gather_constraints(filter_uses, entities, subassemble_entity)?;
     if constraints.is_empty() {
         return Err(Error::NoConstraintsImpliedByFilter(print_json!(&filter)));
     }
+
     grandparent_entities.insert(parent_entity.to_string());
     for (constraint_type, target_path, field) in constraints {
         // TODO: we may want to not clone the whole thing here, only some pieces really need cloned
@@ -331,10 +344,10 @@ fn generate_subassemble(
             })));
             pipeline.push(
                 Stage::Project(
-                    ProjectStage { 
-                        items: map! { 
+                    ProjectStage {
+                        items: map! {
                             parent_entity.clone() => ProjectItem::Assignment(Expression::Ref(Ref::FieldRef(format!("{parent_entity}.{parent_entity}")))) 
-                        } 
+                        }
                     }
                 )
             );
@@ -345,7 +358,7 @@ fn generate_subassemble(
             })));
         } else if constraint_type == ConstraintType::Embedded {
             let target_path = target_path
-                .ok_or_else(|| Error::MissingTargetPathInEmbedded(print_json!(field)))?;
+                .ok_or_else(|| Error::MissingTargetPathInEmbedded(print_json!(&field)))?;
             pipeline.push(Stage::Unwind(Unwind::Document(UnwindExpr {
                 path: Box::new(Expression::Ref(Ref::FieldRef(target_path.clone()))),
                 preserve_null_and_empty_arrays: Some(
@@ -379,5 +392,5 @@ fn generate_subassemble(
             todo!("Implement other constraint types");
         }
     }
-    Ok(Stage::SubPipeline(Pipeline { pipeline: pipeline }))
+    Ok(Stage::SubPipeline(Pipeline { pipeline }))
 }
