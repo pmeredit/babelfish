@@ -38,6 +38,8 @@ pub enum Error {
     FieldInFilterHasNoEntity(String, String),
     #[error("Field {0} not found in entity: {1}")]
     FieldNotFoundInEntity(String, String),
+    #[error("No constraints implied by filter: {0}")]
+    NoConstraintsImpliedByFilter(String),
     #[error("Entity {0} not in scope")]
     EntityNotInScope(String),
     #[error("Disagreeing constraint types for fields in subassemble filter")]
@@ -112,7 +114,8 @@ impl Visitor for AssembleRewrite {
                 let subassembles = std::mem::take(&mut a.subassemble);
                 for assemble in subassembles {
                     output.push(handle_error!(generate_subassemble(
-                        set! {a.entity.to_string()},
+                        HashSet::new(),
+                        a.entity.as_str(),
                         assemble,
                         &entities
                     )));
@@ -206,7 +209,8 @@ fn generate_project(project: Vec<String>) -> Stage {
 }
 
 fn generate_subassemble(
-    mut parent_entities: HashSet<String>,
+    mut grandparent_entities: HashSet<String>,
+    parent_entity: &str,
     subassemble: Subassemble,
     entities: &HashMap<String, Entity>,
 ) -> Result<Stage> {
@@ -225,7 +229,10 @@ fn generate_subassemble(
             return Err(Error::FieldInFilterHasNoEntity(u, print_json!(&filter)));
         }
         let entity_name = &u_split[0];
-        if !parent_entities.contains(entity_name) && entity_name != subassemble.entity.as_str() {
+        if !grandparent_entities.contains(entity_name)
+            && entity_name != parent_entity
+            && entity_name != subassemble.entity.as_str()
+        {
             return Err(Error::EntityNotInScope(entity_name.to_string()));
         }
         let field = u_split[1..].join(".");
@@ -235,17 +242,6 @@ fn generate_subassemble(
             filter_uses.get_mut(entity_name).unwrap().push(field);
         }
     }
-
-    let input_entity_names: Vec<_> = filter_uses
-        .keys()
-        .filter_map(|x| {
-            if **x != subassemble.entity {
-                Some(x.clone())
-            } else {
-                None
-            }
-        })
-        .collect();
 
     let subassemble_entity = entities
         .get(subassemble.entity.as_str())
@@ -272,11 +268,35 @@ fn generate_subassemble(
             }
         }
     }
-    parent_entities.insert(subassemble.entity.clone());
+    if constraints.is_empty() {
+        return Err(Error::NoConstraintsImpliedByFilter(print_json!(&filter)));
+    }
+    grandparent_entities.insert(parent_entity.to_string());
     for (constraint_type, target_path, field) in constraints {
         // TODO: we may want to not clone the whole thing here, only some pieces really need cloned
         let subassemble = subassemble.clone();
         if constraint_type == ConstraintType::Reference {
+            // all of the grandparent_entities are in scope as variables, the parent entity
+            // is in scope as a field
+            let let_map = grandparent_entities
+                .iter()
+                .map(|n| (n.clone(), Expression::Ref(Ref::VariableRef(n.clone()))))
+                .chain(std::iter::once((
+                    parent_entity.to_string(),
+                    Expression::Ref(Ref::FieldRef(parent_entity.to_string())),
+                )))
+                .collect();
+            // replace parent entity fieldRefs with variableRefs. These can be potentially
+            // optimized out with movement, but they may not be if a given conjunctive
+            // subexpression also uses the child entity
+            let theta = grandparent_entities
+                .iter()
+                .map(|n| (n.clone(), Expression::Ref(Ref::VariableRef(n.clone()))))
+                .chain(std::iter::once((
+                    parent_entity.to_string(),
+                    Expression::Ref(Ref::VariableRef(parent_entity.to_string())),
+                )))
+                .collect();
             let collection = subassemble_entity.collection.clone();
             let mut lookup_pipeline = vec![
                 Stage::Project(ProjectStage {
@@ -287,38 +307,28 @@ fn generate_subassemble(
                 }),
                 Stage::Match(MatchStage {
                     expr: vec![MatchExpression::Expr(MatchExpr {
-                        expr: Box::new(
-                            filter.clone().substitute(
-                                input_entity_names
-                                    .iter()
-                                    .map(|n| (n.clone(), Expression::Ref(Ref::FieldRef(n.clone()))))
-                                    .collect(),
-                            ),
-                        ),
+                        expr: Box::new(filter.clone().substitute(theta)),
                     })],
                     numbering: None,
                 }),
             ];
             // add recursive sub assemblies
+            let parent_entity = subassemble.entity.clone();
             for subassemble in subassemble.subassemble.into_iter().flatten() {
                 lookup_pipeline.push(generate_subassemble(
-                    parent_entities.clone(),
+                    grandparent_entities.clone(),
+                    parent_entity.as_str(),
                     subassemble,
                     entities,
                 )?)
             }
             pipeline.push(Stage::Lookup(Lookup::Subquery(SubqueryLookup {
                 from: Some(LookupFrom::Collection(collection)),
-                let_body: Some(
-                    input_entity_names
-                        .iter()
-                        .map(|n| (n.clone(), Expression::Ref(Ref::FieldRef(n.clone()))))
-                        .collect(),
-                ),
+                let_body: Some(let_map),
                 pipeline: Pipeline {
                     pipeline: lookup_pipeline,
                 },
-                as_var: subassemble.entity.clone(),
+                as_var: parent_entity.clone(),
             })));
             pipeline.push(Stage::Unwind(Unwind::Document(UnwindExpr {
                 path: Box::new(Expression::Ref(Ref::FieldRef(subassemble.entity.clone()))),
@@ -348,9 +358,11 @@ fn generate_subassemble(
                 numbering: None,
             }));
             // add recursive sub assemblies
+            let parent_entity = subassemble.entity;
             for subassemble in subassemble.subassemble.into_iter().flatten() {
                 pipeline.push(generate_subassemble(
-                    parent_entities.clone(),
+                    grandparent_entities.clone(),
+                    parent_entity.as_str(),
                     subassemble,
                     entities,
                 )?)

@@ -48,7 +48,7 @@
                     }
                 },
                 "references": {
-                    "contact": {
+                    "bazId": {
                         "entity": "Baz",
                         "field": "_id",
                         "relationshipType": "one-one",

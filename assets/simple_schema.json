@@ -24,9 +24,9 @@
                         "storageConstraints": [
                             {
                                 "constraintType": "embedded",
+                                "targetPath": "barTarget",
                                 "consistency": "strong",
                                 "direction": "child",
-                                "targetPath": "contact",
                                 "projection": ["customerName", "customerAddress"]
                             }
                         ]
@@ -40,6 +40,38 @@
         {
             "db": "company",
             "collection": "bar",
+            "primaryKey": "_id",
+            "jsonSchema": {
+                "bsonType": "object",
+                "properties": {
+                    "_id": {
+                        "bsonType": "objectId"
+                    }
+                },
+                "references": {
+                    "bazId": {
+                        "entity": "Baz",
+                        "field": "_id",
+                        "relationshipType": "one-one",
+                        "storageConstraints": [
+                            {
+                                "constraintType": "embedded",
+                                "targetPath": "bazTarget",
+                                "consistency": "strong",
+                                "direction": "parent",
+                                "deleteAction": "child"
+                            }
+                        ]
+                    }
+                },
+                "required": ["_id"],
+                "additionalProperties": false
+            }
+        },
+        "Baz":
+        {
+            "db": "company",
+            "collection": "baz",
             "primaryKey": "_id",
             "jsonSchema": {
                 "bsonType": "object",

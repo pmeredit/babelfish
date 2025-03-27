@@ -16,7 +16,7 @@
                 "entity": "Baz",
                 "join": "inner",
                 "project": ["_id"],
-                "filter": {"$eq": ["$Foo.barId", "$Bar._id"]}
+                "filter": {"$eq": ["$Bar.bazId", "$Baz._id"]}
             }]
         }]
     }},
