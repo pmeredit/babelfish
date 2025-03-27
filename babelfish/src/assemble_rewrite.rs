@@ -258,25 +258,13 @@ fn gather_constraints(
     Ok(constraints)
 }
 
-fn handle_reference_constraint(
+fn generate_lookup_pipeline(
     grandparent_entities: &HashSet<String>,
     parent_entity: &str,
     subassemble: &Subassemble,
-    subassemble_entity: &Entity,
     filter: &Expression,
     entities: &HashMap<String, Entity>,
-) -> Result<Stage> {
-    let mut pipeline = Vec::new();
-    // all of the grandparent_entities are in scope as variables, the parent entity
-    // is in scope as a field
-    let let_map = grandparent_entities
-        .iter()
-        .map(|n| (n.clone(), Expression::Ref(Ref::VariableRef(n.clone()))))
-        .chain(std::iter::once((
-            parent_entity.to_string(),
-            Expression::Ref(Ref::FieldRef(parent_entity.to_string())),
-        )))
-        .collect();
+) -> Result<Vec<Stage>> {
     // replace parent entity fieldRefs with variableRefs. These can be potentially
     // optimized out with movement, but they may not be if a given conjunctive
     // subexpression also uses the child entity
@@ -288,7 +276,6 @@ fn handle_reference_constraint(
             Expression::Ref(Ref::VariableRef(parent_entity.to_string())),
         )))
         .collect();
-    let collection = subassemble_entity.collection.clone();
     let mut lookup_pipeline = vec![
         Stage::Project(ProjectStage {
             items: map! {
@@ -313,19 +300,49 @@ fn handle_reference_constraint(
             entities,
         )?)
     }
+    Ok(lookup_pipeline)
+}
+
+fn handle_reference_constraint(
+    grandparent_entities: &HashSet<String>,
+    parent_entity: &str,
+    subassemble: &Subassemble,
+    subassemble_entity: &Entity,
+    filter: &Expression,
+    entities: &HashMap<String, Entity>,
+) -> Result<Stage> {
+    let mut pipeline = Vec::new();
+    // all of the grandparent_entities are in scope as variables, the parent entity
+    // is in scope as a field
+    let let_map = grandparent_entities
+        .iter()
+        .map(|n| (n.clone(), Expression::Ref(Ref::VariableRef(n.clone()))))
+        .chain(std::iter::once((
+            parent_entity.to_string(),
+            Expression::Ref(Ref::FieldRef(parent_entity.to_string())),
+        )))
+        .collect();
+    let collection = subassemble_entity.collection.clone();
+    let lookup_pipeline = generate_lookup_pipeline(
+        grandparent_entities,
+        parent_entity,
+        subassemble,
+        filter,
+        entities,
+    )?;
     pipeline.push(Stage::Lookup(Lookup::Subquery(SubqueryLookup {
         from: Some(LookupFrom::Collection(collection)),
         let_body: Some(let_map),
         pipeline: Pipeline {
             pipeline: lookup_pipeline,
         },
-        as_var: parent_entity.clone(),
+        as_var: parent_entity.to_string(),
     })));
     pipeline.push(
                 Stage::Project(
                     ProjectStage {
                         items: map! {
-                            parent_entity.clone() => ProjectItem::Assignment(Expression::Ref(Ref::FieldRef(format!("{parent_entity}.{parent_entity}")))) 
+                            parent_entity.to_string() => ProjectItem::Assignment(Expression::Ref(Ref::FieldRef(format!("{parent_entity}.{parent_entity}")))) 
                         }
                     }
                 )

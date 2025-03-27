@@ -2,7 +2,6 @@ use crate::custom_serde::{deserialize_mql_operator, serialize_mql_operator};
 use bson::Bson;
 use linked_hash_map::LinkedHashMap;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 
 // This module contains an aggregation pipeline syntax tree that implements
 // serde::Deserialize. This allows us to deserialize aggregation pipelines from
