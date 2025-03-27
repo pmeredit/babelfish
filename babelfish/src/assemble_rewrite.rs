@@ -208,7 +208,7 @@ fn generate_project(project: Vec<String>) -> Stage {
 }
 
 fn generate_subassemble(
-    parent_entities: HashSet<String>,
+    mut parent_entities: HashSet<String>,
     subassemble: Subassemble,
     entities: &HashMap<String, Entity>,
 ) -> Result<Stage> {
@@ -218,7 +218,8 @@ fn generate_subassemble(
             subassemble.entity.clone(),
         ));
     }
-    let filter = subassemble.filter.unwrap();
+    let join = subassemble.join.unwrap_or(AssembleJoinType::Inner);
+    let filter = subassemble.filter.clone().unwrap();
     let mut filter_uses = HashMap::new();
     for u in filter.uses().into_iter() {
         let u_split: Vec<_> = u.split('.').map(|x| x.to_string()).collect();
@@ -300,6 +301,8 @@ fn generate_subassemble(
         }
     }
     for (constraint_type, target_path) in constraints {
+        // TODO: we may want to not clone the whole thing here, only some pieces really need cloned
+        let subassemble = subassemble.clone();
         if constraint_type == ConstraintType::Reference {
             let collection = subassemble_entity.collection.clone();
             pipeline.push(Stage::Lookup(Lookup::Subquery(SubqueryLookup {
@@ -323,9 +326,7 @@ fn generate_subassemble(
         })));
             pipeline.push(Stage::Unwind(Unwind::Document(UnwindExpr {
                 path: Box::new(Expression::Ref(Ref::FieldRef(subassemble.entity.clone()))),
-                preserve_null_and_empty_arrays: Some(
-                    subassemble.join == Some(AssembleJoinType::Left),
-                ),
+                preserve_null_and_empty_arrays: Some(join == AssembleJoinType::Left),
                 include_array_index: None,
             })));
         } else if constraint_type == ConstraintType::Embedded {
@@ -353,6 +354,14 @@ fn generate_subassemble(
         } else {
             todo!("Implement other constraint types");
         }
+    }
+    parent_entities.insert(subassemble.entity.clone());
+    for subassemble in subassemble.subassemble.into_iter().flatten() {
+        pipeline.push(generate_subassemble(
+            parent_entities.clone(),
+            subassemble,
+            entities,
+        )?)
     }
     Ok(Stage::SubPipeline(Pipeline { pipeline: pipeline }))
 }
