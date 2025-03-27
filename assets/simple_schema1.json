@@ -26,7 +26,6 @@
                                 "constraintType": "reference",
                                 "consistency": "strong",
                                 "direction": "child",
-                                "targetPath": "contact",
                                 "projection": ["customerName", "customerAddress"]
                             }
                         ]
@@ -37,6 +36,37 @@
             }
         },
         "Bar":
+        {
+            "db": "company",
+            "collection": "bar",
+            "primaryKey": "_id",
+            "jsonSchema": {
+                "bsonType": "object",
+                "properties": {
+                    "_id": {
+                        "bsonType": "objectId"
+                    }
+                },
+                "references": {
+                    "contact": {
+                        "entity": "Baz",
+                        "field": "_id",
+                        "relationshipType": "one-one",
+                        "storageConstraints": [
+                            {
+                                "constraintType": "reference",
+                                "consistency": "strong",
+                                "direction": "parent",
+                                "deleteAction": "child"
+                            }
+                        ]
+                    }
+                },
+                "required": ["_id"],
+                "additionalProperties": false
+            }
+        },
+        "Baz":
         {
             "db": "company",
             "collection": "bar",
