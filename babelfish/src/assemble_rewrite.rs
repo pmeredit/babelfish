@@ -1,15 +1,14 @@
 use ast::{
     definitions::{
-        visitor::Visitor, Assemble, AssembleJoinType, EqualityLookup, Expression, Lookup,
-        LookupFrom, MatchExpr, MatchExpression, MatchStage, Pipeline, ProjectItem, ProjectStage,
-        Ref, Stage, Subassemble, SubqueryLookup, Unwind, UnwindExpr,
+        visitor::Visitor, Assemble, AssembleJoinType, Expression, Lookup, LookupFrom, MatchExpr,
+        MatchExpression, MatchStage, Pipeline, ProjectItem, ProjectStage, Ref, Stage, Subassemble,
+        SubqueryLookup, Unwind, UnwindExpr,
     },
-    map, set,
+    map,
 };
 use linked_hash_map::LinkedHashMap;
-use schema::{ConstraintType, Direction, Entity, Erd, Relationship};
+use schema::{ConstraintType, Entity, Erd};
 use std::collections::{HashMap, HashSet};
-use tailcall::tailcall;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -263,7 +262,7 @@ fn generate_subassemble(
                         print_json!(&subassemble_entity),
                     )
                 })?;
-                let target_path = storage_constraint.target_path.clone();
+                let target_path = storage_constraint.target_path.as_ref().map(|tp| format!("{entity_name}.{tp}"));
                 constraints.insert((storage_constraint.constraint_type, target_path, field));
             }
         }
@@ -330,6 +329,15 @@ fn generate_subassemble(
                 },
                 as_var: parent_entity.clone(),
             })));
+            pipeline.push(
+                Stage::Project(
+                    ProjectStage { 
+                        items: map! { 
+                            parent_entity.clone() => ProjectItem::Assignment(Expression::Ref(Ref::FieldRef(format!("{parent_entity}.{parent_entity}")))) 
+                        } 
+                    }
+                )
+            );
             pipeline.push(Stage::Unwind(Unwind::Document(UnwindExpr {
                 path: Box::new(Expression::Ref(Ref::FieldRef(subassemble.entity.clone()))),
                 preserve_null_and_empty_arrays: Some(join == AssembleJoinType::Left),

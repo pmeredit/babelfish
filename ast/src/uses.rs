@@ -88,11 +88,7 @@ impl Visitor for SubstituteVisitor {
                         }
                         if let Expression::Ref(Ref::VariableRef(prefix)) = expr {
                             if prefix == "ROOT" {
-                                return Expression::Ref(Ref::FieldRef(format!(
-                                    "{}.{}",
-                                    prefix,
-                                    path[i..].join(".")
-                                )));
+                                return Expression::Ref(Ref::FieldRef(path[i..].join(".")));
                             }
                             return Expression::Ref(Ref::VariableRef(format!(
                                 "{}.{}",
@@ -144,6 +140,9 @@ impl Visitor for VarSubstituteVisitor {
                             )));
                         }
                         if let Expression::Ref(Ref::VariableRef(prefix)) = expr {
+                            if prefix == "ROOT" {
+                                return Expression::Ref(Ref::FieldRef(path[i..].join(".")));
+                            }
                             return Expression::Ref(Ref::VariableRef(format!(
                                 "{}.{}",
                                 prefix,
