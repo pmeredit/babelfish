@@ -76,7 +76,7 @@ impl Visitor for SubstituteVisitor {
                 let mut current_path = path[0].to_string();
                 for (i, part) in path.iter().enumerate().skip(1) {
                     if let Some(expr) = self.theta.get(&current_path) {
-                        if i == path.len() - 1 {
+                        if i == path.len() {
                             return expr.clone();
                         }
                         let mut ret = expr.clone();
@@ -112,7 +112,7 @@ impl Visitor for VarSubstituteVisitor {
                 let mut current_path = path[0].to_string();
                 for (i, part) in path.iter().enumerate().skip(1) {
                     if let Some(expr) = self.theta.get(&current_path) {
-                        if i == path.len() - 1 {
+                        if i == path.len() {
                             return expr.clone();
                         }
                         let mut ret = expr.clone();
