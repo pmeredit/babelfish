@@ -336,13 +336,13 @@ fn handle_reference_constraint(
         pipeline: Pipeline {
             pipeline: lookup_pipeline,
         },
-        as_var: parent_entity.to_string(),
+        as_var: subassemble.entity.to_string(),
     })));
     pipeline.push(
                 Stage::Project(
                     ProjectStage {
                         items: map! {
-                            parent_entity.to_string() => ProjectItem::Assignment(Expression::Ref(Ref::FieldRef(format!("{parent_entity}.{parent_entity}")))) 
+                            subassemble.entity.to_string() => ProjectItem::Assignment(Expression::Ref(Ref::FieldRef(format!("{}.{}", subassemble.entity, subassemble.entity)))),
                         }
                     }
                 )
