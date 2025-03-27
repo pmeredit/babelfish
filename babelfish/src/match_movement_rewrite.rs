@@ -1,8 +1,11 @@
-use ast::definitions::{
-    visitor::Visitor, Expression, LiteralValue, Lookup, MatchExpr, MatchExpression, MatchStage,
-    Pipeline, Stage, UntaggedOperator, UntaggedOperatorName,
+use ast::{
+    definitions::{
+        visitor::Visitor, Expression, LiteralValue, Lookup, MatchExpr, MatchExpression, MatchStage,
+        Pipeline, Stage, UntaggedOperator, UntaggedOperatorName,
+    },
+    set,
 };
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 pub struct SubpipelineFlatten;
 
@@ -213,6 +216,15 @@ impl Visitor for SubpipelineMatchMover {
                                 // If there are field uses, we cannot move the match stage because
                                 // they come from the subpipeline source
                                 if !expr.uses().is_empty() {
+                                    j += 1;
+                                    continue;
+                                }
+                                // If there is a var use of $$ROOT, we cannot move the match stage
+                                // because it comes from the subpipeline source
+                                if expr
+                                    .variable_uses()
+                                    .prefix_overlap(&set! {"ROOT".to_string()})
+                                {
                                     j += 1;
                                     continue;
                                 }

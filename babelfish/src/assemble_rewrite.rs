@@ -299,10 +299,6 @@ fn generate_subassemble(
         }
     }
     for (constraint_type, target_path) in constraints {
-        println!(
-            "constraint_type: {:?}, target_path: {:?}",
-            constraint_type, target_path
-        );
         if constraint_type == ConstraintType::Reference {
             let collection = subassemble_entity.collection.clone();
             pipeline.push(Stage::Lookup(Lookup::Subquery(SubqueryLookup {

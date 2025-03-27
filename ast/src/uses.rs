@@ -79,6 +79,27 @@ impl Visitor for SubstituteVisitor {
                         if i == path.len() {
                             return expr.clone();
                         }
+                        if let Expression::Ref(Ref::FieldRef(prefix)) = expr {
+                            return Expression::Ref(Ref::FieldRef(format!(
+                                "{}.{}",
+                                prefix,
+                                path[i..].join(".")
+                            )));
+                        }
+                        if let Expression::Ref(Ref::VariableRef(prefix)) = expr {
+                            if prefix == "ROOT" {
+                                return Expression::Ref(Ref::FieldRef(format!(
+                                    "{}.{}",
+                                    prefix,
+                                    path[i..].join(".")
+                                )));
+                            }
+                            return Expression::Ref(Ref::VariableRef(format!(
+                                "{}.{}",
+                                prefix,
+                                path[i..].join(".")
+                            )));
+                        }
                         let mut ret = expr.clone();
                         for part in path.iter().skip(i) {
                             ret = Expression::TaggedOperator(TaggedOperator::GetField(GetField {
@@ -114,6 +135,20 @@ impl Visitor for VarSubstituteVisitor {
                     if let Some(expr) = self.theta.get(&current_path) {
                         if i == path.len() {
                             return expr.clone();
+                        }
+                        if let Expression::Ref(Ref::FieldRef(prefix)) = expr {
+                            return Expression::Ref(Ref::FieldRef(format!(
+                                "{}.{}",
+                                prefix,
+                                path[i..].join(".")
+                            )));
+                        }
+                        if let Expression::Ref(Ref::VariableRef(prefix)) = expr {
+                            return Expression::Ref(Ref::VariableRef(format!(
+                                "{}.{}",
+                                prefix,
+                                path[i..].join(".")
+                            )));
                         }
                         let mut ret = expr.clone();
                         for part in path.iter().skip(i) {
