@@ -110,6 +110,7 @@ impl Visitor for AssembleRewrite {
                         numbering: None,
                     }));
                 }
+                let project_keys = handle_error!(check_and_collect_project_keys(&a, &entities));
                 let subassembles = std::mem::take(&mut a.subassemble);
                 for assemble in subassembles {
                     output.push(handle_error!(generate_subassemble(
@@ -118,7 +119,6 @@ impl Visitor for AssembleRewrite {
                         &entities
                     )));
                 }
-                let project_keys = handle_error!(check_and_collect_project_keys(a, &entities));
                 output.push(generate_project(project_keys));
                 Stage::SubPipeline(Pipeline { pipeline: output })
             }
@@ -143,14 +143,14 @@ impl Visitor for AssembleRewrite {
 }
 
 fn check_and_collect_project_keys(
-    assemble: Assemble,
+    assemble: &Assemble,
     entities: &HashMap<String, Entity>,
 ) -> Result<Vec<String>> {
     let mut ret = Vec::new();
     check_and_collect_project_keys_aux(
         assemble.entity.as_str(),
-        assemble.project,
-        Some(assemble.subassemble),
+        assemble.project.as_slice(),
+        Some(assemble.subassemble.as_slice()),
         entities,
         &mut ret,
     )?;
@@ -159,8 +159,8 @@ fn check_and_collect_project_keys(
 
 fn check_and_collect_project_keys_aux(
     entity_name: &str,
-    project: Vec<String>,
-    subassembles: Option<Vec<Subassemble>>,
+    project: &[String],
+    subassembles: Option<&[Subassemble]>,
     entities: &HashMap<String, Entity>,
     ret: &mut Vec<String>,
 ) -> Result<()> {
@@ -169,15 +169,18 @@ fn check_and_collect_project_keys_aux(
         .ok_or(Error::EntityMissingFromErd(entity_name.to_string()))?;
     for field in project {
         if !entity.can_contain_field(field.as_str()) {
-            return Err(Error::ProjectKeyNotFound(field, print_json!(entity)));
+            return Err(Error::ProjectKeyNotFound(
+                field.to_string(),
+                print_json!(entity),
+            ));
         }
         ret.push(format!("{}.{}", entity_name, field));
     }
     for subassemble in subassembles.into_iter().flatten() {
         check_and_collect_project_keys_aux(
             subassemble.entity.as_str(),
-            subassemble.project,
-            subassemble.subassemble,
+            subassemble.project.as_slice(),
+            subassemble.subassemble.as_ref().map(|x| x.as_slice()),
             entities,
             ret,
         )?;
@@ -276,17 +279,15 @@ fn generate_subassemble(
         })?;
     let mut constraints = Vec::new();
     for field in input_fields {
-        println!("input field: {:?}", field);
         if let Some(r) = input_references.get(field.as_str()) {
             let storage_constraint = r.storage_constraints.first().ok_or_else(|| {
                 Error::StorageConstraintsNotFoundInEntity(field.clone(), print_json!(&input_entity))
             })?;
             let target_path = storage_constraint.target_path.clone();
-            constraints.push((ConstraintType::Reference, target_path));
+            constraints.push((storage_constraint.constraint_type, target_path));
         }
     }
     for field in subassemble_fields {
-        println!("sub field: {:?}", field);
         if let Some(r) = subassemble_references.get(field.as_str()) {
             let storage_constraint = r.storage_constraints.first().ok_or_else(|| {
                 Error::StorageConstraintsNotFoundInEntity(
@@ -295,7 +296,7 @@ fn generate_subassemble(
                 )
             })?;
             let target_path = storage_constraint.target_path.clone();
-            constraints.push((ConstraintType::Reference, target_path));
+            constraints.push((storage_constraint.constraint_type, target_path));
         }
     }
     for (constraint_type, target_path) in constraints {
@@ -328,15 +329,27 @@ fn generate_subassemble(
                 include_array_index: None,
             })));
         } else if constraint_type == ConstraintType::Embedded {
+            let target_path = target_path
+                .ok_or_else(|| Error::MissingTargetPathInReference(print_json!(input_entity)))?;
             pipeline.push(Stage::Unwind(Unwind::Document(UnwindExpr {
-                path: Box::new(Expression::Ref(Ref::FieldRef(target_path.ok_or_else(
-                    || Error::MissingTargetPathInEmbedded(print_json!(input_entity)),
-                )?))),
+                path: Box::new(Expression::Ref(Ref::FieldRef(target_path.clone()))),
                 preserve_null_and_empty_arrays: Some(
                     subassemble.join == Some(AssembleJoinType::Left),
                 ),
                 include_array_index: None,
             })));
+            pipeline.push(Stage::Project(ProjectStage {
+                items: map! {
+                    subassemble.entity.clone() => ProjectItem::Assignment(Expression::Ref(Ref::FieldRef(target_path))),
+                    "_id".to_string() => ProjectItem::Exclusion,
+                },
+            }));
+            pipeline.push(Stage::Match(MatchStage {
+                expr: vec![MatchExpression::Expr(MatchExpr {
+                    expr: Box::new(filter.clone()),
+                })],
+                numbering: None,
+            }));
         } else {
             todo!("Implement other constraint types");
         }
