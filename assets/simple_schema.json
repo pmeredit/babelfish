@@ -1,0 +1,56 @@
+{
+    "schemaName": "simple_erd",
+    "entities": {
+        "Foo":
+        {
+            "db": "company",
+            "collection": "foo",
+            "primaryKey": "_id",
+            "jsonSchema": {
+                "bsonType": "object",
+                "properties": {
+                    "_id": {
+                        "bsonType": "objectId"
+                    },
+                    "barId": {
+                        "bsonType": "objectId"
+                    }
+                },
+                "references": {
+                    "barId": {
+                        "entity": "Bar",
+                        "field": "_id",
+                        "relationshipType": "many-one",
+                        "storageConstraints": [
+                            {
+                                "constraintType": "embedded",
+                                "consistency": "strong",
+                                "direction": "child",
+                                "targetPath": "contact",
+                                "projection": ["customerName", "customerAddress"]
+                            }
+                        ]
+                    }
+                },
+                "required": ["_id", "barId"],
+                "additionalProperties": false
+            }
+        },
+        "Bar":
+        {
+            "db": "company",
+            "collection": "bar",
+            "primaryKey": "_id",
+            "jsonSchema": {
+                "bsonType": "object",
+                "properties": {
+                    "_id": {
+                        "bsonType": "objectId"
+                    }
+                },
+                "required": ["_id"],
+                "additionalProperties": false
+            }
+        }
+    }
+}

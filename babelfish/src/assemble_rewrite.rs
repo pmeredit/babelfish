@@ -96,15 +96,20 @@ impl Visitor for AssembleRewrite {
                 let erd: Erd =
                     handle_error!(serde_json::from_str(&erd_json).map_err(Error::CouldNotParseErd));
                 let entities = erd.entities;
-                let root_entity = handle_error!(entities
-                    .get(a.entity.as_str())
-                    .ok_or_else(|| Error::EntityMissingFromErd(a.entity.clone())));
                 let mut output = vec![Stage::Project(ProjectStage {
                     items: map! {
                         a.entity.clone() => ProjectItem::Assignment(Expression::Ref(Ref::VariableRef("ROOT".to_string()))),
                         "_id".to_string() => ProjectItem::Exclusion,
                     },
                 })];
+                if let Some(ref filter) = a.filter {
+                    output.push(Stage::Match(MatchStage {
+                        expr: vec![MatchExpression::Expr(MatchExpr {
+                            expr: Box::new(filter.clone()),
+                        })],
+                        numbering: None,
+                    }));
+                }
                 let subassembles = std::mem::take(&mut a.subassemble);
                 for assemble in subassembles {
                     output.push(handle_error!(generate_subassemble(
@@ -232,7 +237,7 @@ fn generate_subassemble(
         todo!("Implement multi-entity filters");
     }
 
-    let reference_entity_names: Vec<_> = filter_uses
+    let input_entity_names: Vec<_> = filter_uses
         .keys()
         .filter_map(|x| {
             if **x != subassemble.entity {
@@ -243,84 +248,96 @@ fn generate_subassemble(
         })
         .collect();
 
-    if reference_entity_names.len() != 1 {
+    if input_entity_names.len() != 1 {
         todo!("Implement multi-entity filters");
     }
 
-    let reference_entity_name = reference_entity_names.first().unwrap();
+    let input_entity_name = input_entity_names.first().unwrap();
 
-    let reference_entity = entities
-        .get(reference_entity_name.as_str())
-        .ok_or_else(|| Error::EntityMissingFromErd(reference_entity_name.clone()))?;
-    println!("reference_entity: {}", print_json!(reference_entity));
-    let references = reference_entity
+    let input_entity = entities
+        .get(input_entity_name.as_str())
+        .ok_or_else(|| Error::EntityMissingFromErd(input_entity_name.clone()))?;
+    let subassemble_entity = entities
+        .get(subassemble.entity.as_str())
+        .ok_or_else(|| Error::EntityMissingFromErd(subassemble.entity.clone()))?;
+    let input_references = input_entity
         .get_references()
-        .ok_or_else(|| Error::NoReferencesInErd(reference_entity_name.clone()))?;
-    let fields = filter_uses
+        .ok_or_else(|| Error::NoReferencesInErd(input_entity_name.clone()))?;
+    let input_fields = filter_uses.get(input_entity_name.as_str()).ok_or_else(|| {
+        Error::MissingKeyInFilter(input_entity_name.clone(), print_json!(&filter))
+    })?;
+    let subassemble_references = subassemble_entity
+        .get_references()
+        .ok_or_else(|| Error::NoReferencesInErd(input_entity_name.clone()))?;
+    let subassemble_fields = filter_uses
         .get(subassemble.entity.as_str())
         .ok_or_else(|| {
             Error::MissingKeyInFilter(subassemble.entity.clone(), print_json!(&filter))
         })?;
-    // ensure all references have same constraint type
-    let mut constraint_type = None;
-    let mut target_path = None;
-    let mut reference = None;
-    for field in fields {
-        let r = references
-            .get(field.as_str())
-            .ok_or_else(|| Error::ReferenceKeyNotFound(field.clone()))?;
-        let storage_constraint = r.storage_constraints.first().ok_or_else(|| {
-            Error::StorageConstraintsNotFoundInEntity(
-                field.clone(),
-                print_json!(entities.get(reference_entity_name).unwrap()),
-            )
-        })?;
-        if let Some(constraint_type) = constraint_type {
-            if constraint_type != storage_constraint.constraint_type {
-                return Err(Error::DisagreeingConstraintTypes);
-            }
-        } else {
-            constraint_type = Some(storage_constraint.constraint_type);
+    let mut constraints = Vec::new();
+    for field in input_fields {
+        println!("input field: {:?}", field);
+        if let Some(r) = input_references.get(field.as_str()) {
+            let storage_constraint = r.storage_constraints.first().ok_or_else(|| {
+                Error::StorageConstraintsNotFoundInEntity(field.clone(), print_json!(&input_entity))
+            })?;
+            let target_path = storage_constraint.target_path.clone();
+            constraints.push((ConstraintType::Reference, target_path));
         }
-        target_path = storage_constraint.target_path.clone();
-        reference = Some(r);
     }
-    let reference =
-        reference.ok_or_else(|| Error::MissingFilterInSubassemble(print_json!(&filter)))?;
-    let constraint_type = constraint_type.ok_or(Error::DisagreeingConstraintTypes)?;
-    let subassemble_entity = entities
-        .get(subassemble.entity.as_str())
-        .ok_or_else(|| Error::EntityMissingFromErd(subassemble.entity.clone()))?;
-    if constraint_type == ConstraintType::Reference {
-        let collection = subassemble_entity.collection.clone();
-        pipeline.push(Stage::Lookup(Lookup::Subquery(SubqueryLookup {
+    for field in subassemble_fields {
+        println!("sub field: {:?}", field);
+        if let Some(r) = subassemble_references.get(field.as_str()) {
+            let storage_constraint = r.storage_constraints.first().ok_or_else(|| {
+                Error::StorageConstraintsNotFoundInEntity(
+                    field.clone(),
+                    print_json!(&subassemble_entity),
+                )
+            })?;
+            let target_path = storage_constraint.target_path.clone();
+            constraints.push((ConstraintType::Reference, target_path));
+        }
+    }
+    for (constraint_type, target_path) in constraints {
+        println!(
+            "constraint_type: {:?}, target_path: {:?}",
+            constraint_type, target_path
+        );
+        if constraint_type == ConstraintType::Reference {
+            let collection = subassemble_entity.collection.clone();
+            pipeline.push(Stage::Lookup(Lookup::Subquery(SubqueryLookup {
             from: Some(LookupFrom::Collection(collection)),
-            let_body: Some(map! {reference_entity_name.clone() => Expression::Ref(Ref::FieldRef(reference_entity_name.clone()))}),
+            let_body: Some(map! {input_entity_name.clone() => Expression::Ref(Ref::FieldRef(input_entity_name.clone()))}),
             pipeline: Pipeline { pipeline: vec![
                 Stage::Match(MatchStage {
                     expr: vec![MatchExpression::Expr(MatchExpr {
-                        expr: Box::new(filter),
+                        expr: Box::new(filter.clone()),
                     })],
                     numbering: None,
                 }),
             ] },
             as_var: subassemble.entity.clone(),
         })));
-        pipeline.push(Stage::Unwind(Unwind::Document(UnwindExpr {
-            path: Box::new(Expression::Ref(Ref::FieldRef(subassemble.entity.clone()))),
-            preserve_null_and_empty_arrays: Some(subassemble.join == Some(AssembleJoinType::Left)),
-            include_array_index: None,
-        })));
-    } else if constraint_type == ConstraintType::Embedded {
-        pipeline.push(Stage::Unwind(Unwind::Document(UnwindExpr {
-            path: Box::new(Expression::Ref(Ref::FieldRef(target_path.ok_or_else(
-                || Error::MissingTargetPathInEmbedded(print_json!(reference_entity)),
-            )?))),
-            preserve_null_and_empty_arrays: Some(subassemble.join == Some(AssembleJoinType::Left)),
-            include_array_index: None,
-        })));
-    } else {
-        todo!("Implement other constraint types");
+            pipeline.push(Stage::Unwind(Unwind::Document(UnwindExpr {
+                path: Box::new(Expression::Ref(Ref::FieldRef(subassemble.entity.clone()))),
+                preserve_null_and_empty_arrays: Some(
+                    subassemble.join == Some(AssembleJoinType::Left),
+                ),
+                include_array_index: None,
+            })));
+        } else if constraint_type == ConstraintType::Embedded {
+            pipeline.push(Stage::Unwind(Unwind::Document(UnwindExpr {
+                path: Box::new(Expression::Ref(Ref::FieldRef(target_path.ok_or_else(
+                    || Error::MissingTargetPathInEmbedded(print_json!(input_entity)),
+                )?))),
+                preserve_null_and_empty_arrays: Some(
+                    subassemble.join == Some(AssembleJoinType::Left),
+                ),
+                include_array_index: None,
+            })));
+        } else {
+            todo!("Implement other constraint types");
+        }
     }
     Ok(Stage::SubPipeline(Pipeline { pipeline: pipeline }))
 }
