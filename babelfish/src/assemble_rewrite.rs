@@ -278,14 +278,15 @@ fn generate_subassemble(
         .ok_or_else(|| {
             Error::MissingKeyInFilter(subassemble.entity.clone(), print_json!(&filter))
         })?;
-    let mut constraints = Vec::new();
+    // Use a set to avoid duplicates
+    let mut constraints = HashSet::new();
     for field in input_fields {
         if let Some(r) = input_references.get(field.as_str()) {
             let storage_constraint = r.storage_constraints.first().ok_or_else(|| {
                 Error::StorageConstraintsNotFoundInEntity(field.clone(), print_json!(&input_entity))
             })?;
             let target_path = storage_constraint.target_path.clone();
-            constraints.push((storage_constraint.constraint_type, target_path));
+            constraints.insert((storage_constraint.constraint_type, target_path));
         }
     }
     for field in subassemble_fields {
@@ -297,18 +298,16 @@ fn generate_subassemble(
                 )
             })?;
             let target_path = storage_constraint.target_path.clone();
-            constraints.push((storage_constraint.constraint_type, target_path));
+            constraints.insert((storage_constraint.constraint_type, target_path));
         }
     }
+    parent_entities.insert(subassemble.entity.clone());
     for (constraint_type, target_path) in constraints {
         // TODO: we may want to not clone the whole thing here, only some pieces really need cloned
         let subassemble = subassemble.clone();
         if constraint_type == ConstraintType::Reference {
             let collection = subassemble_entity.collection.clone();
-            pipeline.push(Stage::Lookup(Lookup::Subquery(SubqueryLookup {
-            from: Some(LookupFrom::Collection(collection)),
-            let_body: Some(map! {input_entity_name.clone() => Expression::Ref(Ref::FieldRef(input_entity_name.clone()))}),
-            pipeline: Pipeline { pipeline: vec![
+            let mut lookup_pipeline = vec![
                 Stage::Project(ProjectStage {
                     items: map! {
                         subassemble.entity.clone() => ProjectItem::Assignment(Expression::Ref(Ref::VariableRef("ROOT".to_string()))),
@@ -321,9 +320,21 @@ fn generate_subassemble(
                     })],
                     numbering: None,
                 }),
-            ] },
-            as_var: subassemble.entity.clone(),
-        })));
+            ];
+            // add recursive sub assemblies
+            for subassemble in subassemble.subassemble.into_iter().flatten() {
+                lookup_pipeline.push(generate_subassemble(
+                    parent_entities.clone(),
+                    subassemble,
+                    entities,
+                )?)
+            }
+            pipeline.push(Stage::Lookup(Lookup::Subquery(SubqueryLookup {
+                from: Some(LookupFrom::Collection(collection)),
+                let_body: Some(map! {input_entity_name.clone() => Expression::Ref(Ref::FieldRef(input_entity_name.clone()))}),
+                pipeline: Pipeline { pipeline:  lookup_pipeline },
+                as_var: subassemble.entity.clone(),
+            })));
             pipeline.push(Stage::Unwind(Unwind::Document(UnwindExpr {
                 path: Box::new(Expression::Ref(Ref::FieldRef(subassemble.entity.clone()))),
                 preserve_null_and_empty_arrays: Some(join == AssembleJoinType::Left),
@@ -351,17 +362,17 @@ fn generate_subassemble(
                 })],
                 numbering: None,
             }));
+            // add recursive sub assemblies
+            for subassemble in subassemble.subassemble.into_iter().flatten() {
+                pipeline.push(generate_subassemble(
+                    parent_entities.clone(),
+                    subassemble,
+                    entities,
+                )?)
+            }
         } else {
             todo!("Implement other constraint types");
         }
-    }
-    parent_entities.insert(subassemble.entity.clone());
-    for subassemble in subassemble.subassemble.into_iter().flatten() {
-        pipeline.push(generate_subassemble(
-            parent_entities.clone(),
-            subassemble,
-            entities,
-        )?)
     }
     Ok(Stage::SubPipeline(Pipeline { pipeline: pipeline }))
 }

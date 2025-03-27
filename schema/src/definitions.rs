@@ -111,7 +111,9 @@ impl Schema {
     }
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, Default, Serialize, Deserialize)]
+#[derive(
+    PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Copy, Default, Serialize, Deserialize,
+)]
 pub enum Relationship {
     #[default]
     #[serde(rename = "one-one")]
@@ -120,7 +122,9 @@ pub enum Relationship {
     Many,
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, Default, Serialize, Deserialize)]
+#[derive(
+    PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Copy, Default, Serialize, Deserialize,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum ConstraintType {
     #[default]
@@ -129,7 +133,9 @@ pub enum ConstraintType {
     Bucket,
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, Default, Serialize, Deserialize)]
+#[derive(
+    PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Copy, Default, Serialize, Deserialize,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum Consistency {
     #[default]
@@ -138,7 +144,9 @@ pub enum Consistency {
     Temporal,
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, Default, Serialize, Deserialize)]
+#[derive(
+    PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Copy, Default, Serialize, Deserialize,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum Direction {
     #[default]
