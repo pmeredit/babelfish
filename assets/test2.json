@@ -1,0 +1,21 @@
+[
+    {"$assemble": {
+        "erd": "./assets/schema.json",
+        "entity": "Customer",
+        "project": ["customerName", "customerAddress"],
+        "subassemble": [{
+            "entity": "Account",
+            "join": "inner",
+            "project": ["accountName"],
+            "subassemble": [
+            {
+                "entity": "Order",
+                "join": "inner",
+                "filter": 
+                  { "$gte": ["$Order.amount", 100] }
+            }]
+        }]
+    }},
+    {"$limit": 10},
+    {"$skip": 0}
+]
