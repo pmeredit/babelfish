@@ -2,7 +2,7 @@
     {"$assemble": {
         "erd": "./assets/schema.json",
         "entity": "Customer",
-        "project": ["customerName", "customerAddress"],
+        "project": ["customerAddress", "customerName"],
         "subassemble": [{
             "entity": "Account",
             "join": "inner",
