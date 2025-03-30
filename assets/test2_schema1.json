@@ -1,0 +1,25 @@
+[
+    {"$assemble": {
+        "erd": "./assets/schema1.json",
+        "entity": "Customer",
+        "project": ["customerAddress", "customerName"],
+        "subassemble": [{
+            "entity": "Account",
+            "join": "inner",
+            "project": ["accountName"],
+            "filter": 
+              { "$eq": ["$Account.customerId", "$Customer._id"] },
+            "subassemble": [{
+                "entity": "Order",
+                "join": "inner",
+                "project": ["amount"],
+                "filter": { "$and": [
+                    { "$eq": ["$Order.accountId", "$Account._id"] },
+                    { "$gte": ["$Order.amount", 100] }
+                ]}
+            }]
+        }]
+    }},
+    {"$limit": 10},
+    {"$skip": 0}
+]

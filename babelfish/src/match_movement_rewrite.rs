@@ -1,7 +1,7 @@
 use ast::{
     definitions::{
-        Expression, LiteralValue, Lookup, MatchExpr, MatchExpression, MatchStage, Pipeline, Stage,
-        UntaggedOperator, UntaggedOperatorName, visitor::Visitor,
+        visitor::Visitor, Expression, LiteralValue, Lookup, MatchExpr, MatchExpression, MatchStage,
+        Pipeline, Stage, UntaggedOperator, UntaggedOperatorName,
     },
     set,
 };
@@ -24,6 +24,11 @@ impl Visitor for SubpipelineFlatten {
                 .collect(),
         }
     }
+}
+
+pub fn flatten_pipeline(pipeline: Pipeline) -> Pipeline {
+    let mut visitor = SubpipelineFlatten;
+    visitor.visit_pipeline(pipeline)
 }
 
 pub struct MatchSplitter;

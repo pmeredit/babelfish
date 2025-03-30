@@ -68,6 +68,9 @@ fn run() -> Result<(), CliError> {
         let pipeline = std::fs::read_to_string(pipeline_file)?;
         let pipeline: Pipeline = serde_json::from_str(&pipeline)?;
         let pipeline = assemble_rewrite::rewrite_pipeline(pipeline)?;
+        //let pipeline = match_movement_rewrite::flatten_pipeline(pipeline);
+        // let pipeline_json = serde_json::to_string_pretty(&pipeline)?;
+        //println!("before opt: {}", pipeline_json);
         let pipeline = match_movement_rewrite::rewrite_match_move(pipeline);
         let pipeline_json = serde_json::to_string_pretty(&pipeline)?;
         println!("{}", pipeline_json);
