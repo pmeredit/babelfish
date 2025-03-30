@@ -84,7 +84,7 @@
                     "accountId": {
                         "bsonType": "objectId"
                     },
-                    "amounnt": {
+                    "amount": {
                         "bsonType": "double"
                     }
                 },

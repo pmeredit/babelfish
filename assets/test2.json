@@ -7,12 +7,16 @@
             "entity": "Account",
             "join": "inner",
             "project": ["accountName"],
-            "subassemble": [
-            {
+            "filter": 
+              { "$eq": ["$Account.customerId", "$Customer._id"] },
+            "subassemble": [{
                 "entity": "Order",
                 "join": "inner",
-                "filter": 
-                  { "$gte": ["$Order.amount", 100] }
+                "project": ["amount"],
+                "filter": { "$and": [
+                    { "$eq": ["$Order.accountId", "$Account._id"] },
+                    { "$gte": ["$Order.amount", 100] }
+                ]}
             }]
         }]
     }},
