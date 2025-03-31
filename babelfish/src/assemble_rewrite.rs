@@ -144,7 +144,7 @@ impl Visitor for AssembleRewrite {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct Constraint {
     constraint_type: ConstraintType,
     target_path: Option<String>,
@@ -161,7 +161,34 @@ fn build_entity_graph(
         entities,
         &mut entity_graph,
     );
-    Ok(entity_graph)
+    let mut reverse_graph = HashMap::new();
+    for (source_name, graph) in entity_graph.iter() {
+        for (target_name, constraint) in graph.iter() {
+            if let Some(target_graph) = entity_graph.get(target_name) {
+                if let Some(target_constraint) = target_graph.get(source_name) {
+                    if target_constraint.constraint_type != constraint.constraint_type {
+                        return Err(Error::DisagreeingConstraintTypes);
+                    }
+                } else {
+                    reverse_graph
+                        .entry(target_name.clone())
+                        .or_insert_with(HashMap::new)
+                        .insert(source_name.clone(), constraint.clone());
+                }
+            }
+        }
+    }
+    Ok(graph_union(entity_graph, reverse_graph))
+}
+
+fn graph_union<T>(
+    mut a: HashMap<String, HashMap<String, T>>,
+    b: HashMap<String, HashMap<String, T>>,
+) -> HashMap<String, HashMap<String, T>> {
+    for (k, v) in b {
+        a.entry(k).or_insert_with(HashMap::new).extend(v);
+    }
+    a
 }
 
 fn build_entity_graph_aux(
@@ -192,9 +219,7 @@ fn build_entity_graph_aux(
             constraint_type: storage_constraint.constraint_type,
             target_path,
         };
-        if !current_entity_graph.contains_key(entity_name) {
-            current_entity_graph.insert(reference.entity.clone(), constraint);
-        }
+        current_entity_graph.insert(reference.entity.clone(), constraint);
     }
     for subassemble in subassembles.into_iter().flatten() {
         build_entity_graph_aux(
