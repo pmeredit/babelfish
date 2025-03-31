@@ -214,13 +214,9 @@ fn build_entity_graph_aux(
     let references = entity
         .get_references()
         .ok_or(Error::NoReferencesInErd(entity_name.to_string()))?;
-    let current_entity_graph = if let Some(current_entity_graph) = entity_graph.get_mut(entity_name)
-    {
-        current_entity_graph
-    } else {
-        entity_graph.insert(entity_name.to_string(), HashMap::new());
-        entity_graph.get_mut(entity_name).unwrap()
-    };
+    let current_entity_graph = entity_graph
+        .entry(entity_name.to_string())
+        .or_insert_with(HashMap::new);
     for (field, reference) in references.iter() {
         let storage_constraint = reference.storage_constraints.first().ok_or(
             Error::StorageConstraintsNotFoundInEntity(field.clone(), print_json!(entity)),
