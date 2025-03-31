@@ -96,7 +96,7 @@ impl Visitor for AssembleRewrite {
                     handle_error!(serde_json::from_str(&erd_json).map_err(Error::CouldNotParseErd));
                 let entities = erd.entities;
                 let entity_graph = handle_error!(build_entity_graph(&a, &entities));
-                dbg!(entity_graph);
+                dbg!(&entity_graph, minimal_ordering(&entity_graph));
                 let mut output = vec![Stage::Project(ProjectStage {
                     items: map! {
                         a.entity.clone() => ProjectItem::Assignment(Expression::Ref(Ref::VariableRef("ROOT".to_string()))),
@@ -238,6 +238,38 @@ fn build_entity_graph_aux(
         )?;
     }
     Ok(())
+}
+
+fn minimal_ordering(graph: &HashMap<String, HashMap<String, Constraint>>) -> Vec<String> {
+    let mut ordering = Vec::new();
+    let mut queue = Vec::new();
+    let mut visited = HashSet::new();
+    let root = graph
+        .iter()
+        .find(|(_, v)| v.iter().all(|(_, c)| c.direction == Direction::Parent))
+        .unwrap()
+        .0
+        .clone();
+    ordering.push(root.clone());
+    queue.push(root.clone());
+    visited.insert(root.clone());
+    while !queue.is_empty() {
+        for edge in graph
+            .get(queue.pop().unwrap().as_str())
+            .into_iter()
+            .flatten()
+        {
+            if visited.contains(edge.0) {
+                continue;
+            }
+            if edge.1.direction == Direction::Parent {
+                ordering.push(edge.0.clone());
+                queue.push(edge.0.clone());
+                visited.insert(edge.0.clone());
+            }
+        }
+    }
+    ordering
 }
 
 fn check_and_collect_project_keys(
