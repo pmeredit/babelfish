@@ -171,7 +171,7 @@ fn build_entity_graph(
         Some(assemble.subassemble.as_slice()),
         entities,
         &mut entity_graph,
-    );
+    )?;
     let mut reverse_graph = HashMap::new();
     for (source_name, graph) in entity_graph.iter() {
         for (target_name, constraint) in graph.iter() {
