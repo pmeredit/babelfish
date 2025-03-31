@@ -95,6 +95,8 @@ impl Visitor for AssembleRewrite {
                 let erd: Erd =
                     handle_error!(serde_json::from_str(&erd_json).map_err(Error::CouldNotParseErd));
                 let entities = erd.entities;
+                let entity_graph = handle_error!(build_entity_graph(&a, &entities));
+                dbg!(entity_graph);
                 let mut output = vec![Stage::Project(ProjectStage {
                     items: map! {
                         a.entity.clone() => ProjectItem::Assignment(Expression::Ref(Ref::VariableRef("ROOT".to_string()))),
@@ -140,6 +142,69 @@ impl Visitor for AssembleRewrite {
                 .collect(),
         }
     }
+}
+
+#[derive(Debug)]
+struct Constraint {
+    constraint_type: ConstraintType,
+    target_path: Option<String>,
+}
+
+fn build_entity_graph(
+    assemble: &Assemble,
+    entities: &HashMap<String, Entity>,
+) -> Result<HashMap<String, HashMap<String, Constraint>>> {
+    let mut entity_graph = HashMap::new();
+    build_entity_graph_aux(
+        assemble.entity.as_str(),
+        Some(assemble.subassemble.as_slice()),
+        entities,
+        &mut entity_graph,
+    );
+    Ok(entity_graph)
+}
+
+fn build_entity_graph_aux(
+    entity_name: &str,
+    subassembles: Option<&[Subassemble]>,
+    entities: &HashMap<String, Entity>,
+    entity_graph: &mut HashMap<String, HashMap<String, Constraint>>,
+) -> Result<()> {
+    let entity = entities
+        .get(entity_name)
+        .ok_or(Error::EntityMissingFromErd(entity_name.to_string()))?;
+    let references = entity
+        .get_references()
+        .ok_or(Error::NoReferencesInErd(entity_name.to_string()))?;
+    let current_entity_graph = if let Some(current_entity_graph) = entity_graph.get_mut(entity_name)
+    {
+        current_entity_graph
+    } else {
+        entity_graph.insert(entity_name.to_string(), HashMap::new());
+        entity_graph.get_mut(entity_name).unwrap()
+    };
+    for (field, reference) in references.iter() {
+        let storage_constraint = reference.storage_constraints.first().ok_or(
+            Error::StorageConstraintsNotFoundInEntity(field.clone(), print_json!(entity)),
+        )?;
+        let target_path = storage_constraint.target_path.clone();
+        let constraint = Constraint {
+            constraint_type: storage_constraint.constraint_type,
+            target_path,
+        };
+        if !current_entity_graph.contains_key(entity_name) {
+            current_entity_graph.insert(reference.entity.clone(), constraint);
+        }
+    }
+    for subassemble in subassembles.into_iter().flatten() {
+        build_entity_graph_aux(
+            subassemble.entity.as_str(),
+            subassemble.subassemble.as_ref().map(|x| x.as_slice()),
+            entities,
+            entity_graph,
+        )?;
+    }
+    Ok(())
 }
 
 fn check_and_collect_project_keys(
