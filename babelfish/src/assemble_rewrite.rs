@@ -7,7 +7,7 @@ use ast::{
     map,
 };
 use linked_hash_map::LinkedHashMap;
-use schema::{ConstraintType, Entity, Erd};
+use schema::{ConstraintType, Direction, Entity, Erd};
 use std::collections::{HashMap, HashSet};
 use thiserror::Error;
 
@@ -148,6 +148,17 @@ impl Visitor for AssembleRewrite {
 struct Constraint {
     constraint_type: ConstraintType,
     target_path: Option<String>,
+    direction: Direction,
+}
+
+impl Constraint {
+    fn inverse(&self) -> Constraint {
+        Constraint {
+            constraint_type: self.constraint_type,
+            target_path: self.target_path.clone(),
+            direction: self.direction.inverse(),
+        }
+    }
 }
 
 fn build_entity_graph(
@@ -173,7 +184,7 @@ fn build_entity_graph(
                     reverse_graph
                         .entry(target_name.clone())
                         .or_insert_with(HashMap::new)
-                        .insert(source_name.clone(), constraint.clone());
+                        .insert(source_name.clone(), constraint.inverse());
                 }
             }
         }
@@ -218,6 +229,7 @@ fn build_entity_graph_aux(
         let constraint = Constraint {
             constraint_type: storage_constraint.constraint_type,
             target_path,
+            direction: storage_constraint.direction,
         };
         current_entity_graph.insert(reference.entity.clone(), constraint);
     }
