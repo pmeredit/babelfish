@@ -2,7 +2,7 @@ use ast::{
     definitions::{
         visitor::Visitor, Assemble, AssembleJoinType, Expression, Lookup, LookupFrom, MatchExpr,
         MatchExpression, MatchStage, Pipeline, ProjectItem, ProjectStage, Ref, Stage, Subassemble,
-        SubqueryLookup, Unwind, UnwindExpr,
+        SubqueryLookup, UntaggedOperator, UntaggedOperatorName, Unwind, UnwindExpr,
     },
     map,
 };
@@ -96,7 +96,7 @@ impl Visitor for AssembleRewrite {
                 let erd: Erd =
                     handle_error!(serde_json::from_str(&erd_json).map_err(Error::CouldNotParseErd));
                 let entities = erd.entities;
-                let entity_graph = handle_error!(build_entity_graph(&a, &entities));
+                let entity_graph = handle_error!(dbg!(build_entity_graph(&a, &entities)));
                 let mut output = vec![Stage::Project(ProjectStage {
                     items: map! {
                         a.entity.clone() => ProjectItem::Assignment(Expression::Ref(Ref::VariableRef("ROOT".to_string()))),
@@ -113,15 +113,13 @@ impl Visitor for AssembleRewrite {
                 }
                 let project_keys = handle_error!(check_and_collect_project_keys(&a, &entities));
                 let subassembles = std::mem::take(&mut a.subassemble);
-                //let mut mapping_registry = map! {
-                //    a.entity.clone() => Expression::Ref(Ref::FieldRef(a.entity.clone())),
-                //};
                 for assemble in subassembles {
                     let pipeline = handle_error!(generate_subassemble(
                         &a.entity,
                         assemble,
                         &entity_graph,
-                        &entities
+                        &entities,
+                        HashMap::new()
                     ));
                     output.push(pipeline);
                 }
@@ -154,9 +152,10 @@ impl Visitor for AssembleRewrite {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 struct Constraint {
     constraint_type: ConstraintType,
+    filter: Expression,
     target_path: Option<String>,
     direction: Direction,
 }
@@ -165,6 +164,7 @@ impl Constraint {
     fn inverse(&self) -> Constraint {
         Constraint {
             constraint_type: self.constraint_type,
+            filter: self.filter.clone(),
             target_path: self.target_path.clone(),
             direction: self.direction.inverse(),
         }
@@ -234,6 +234,16 @@ fn build_entity_graph_aux(
         let target_path = storage_constraint.target_path.clone();
         let constraint = Constraint {
             constraint_type: storage_constraint.constraint_type,
+            filter: Expression::UntaggedOperator(UntaggedOperator {
+                op: UntaggedOperatorName::Eq,
+                args: vec![
+                    Expression::Ref(Ref::FieldRef(format!("{}.{}", entity_name, field))),
+                    Expression::Ref(Ref::FieldRef(format!(
+                        "{}.{}",
+                        reference.entity, reference.field
+                    ))),
+                ],
+            }),
             target_path,
             direction: storage_constraint.direction,
         };
@@ -352,6 +362,7 @@ fn generate_subassemble(
     subassemble: Subassemble,
     entity_graph: &HashMap<String, HashMap<String, Constraint>>,
     entities: &HashMap<String, Entity>,
+    variables: HashMap<String, Expression>,
 ) -> Result<Stage> {
     let edge_constraint = entity_graph
         .get(parent_entity)
@@ -359,12 +370,22 @@ fn generate_subassemble(
         .get(subassemble.entity.as_str())
         .ok_or(Error::EntityNotInScope(subassemble.entity.clone()))?;
     let pipeline = vec![match edge_constraint.constraint_type {
-        ConstraintType::Reference => {
-            handle_reference_constraint(subassemble, edge_constraint, entity_graph, entities)
-        }
-        ConstraintType::Embedded => {
-            handle_embedded_constraint(subassemble, edge_constraint, entity_graph, entities)
-        }
+        ConstraintType::Reference => handle_reference_constraint(
+            parent_entity,
+            subassemble,
+            edge_constraint,
+            entity_graph,
+            entities,
+            variables,
+        ),
+        ConstraintType::Embedded => handle_embedded_constraint(
+            parent_entity,
+            subassemble,
+            edge_constraint,
+            entity_graph,
+            entities,
+            variables,
+        ),
         ConstraintType::Bucket => {
             todo!();
         }
@@ -374,45 +395,65 @@ fn generate_subassemble(
 
 fn generate_lookup_pipeline(
     subassemble: Subassemble,
+    constraint: &Constraint,
     entity_graph: &HashMap<String, HashMap<String, Constraint>>,
     entities: &HashMap<String, Entity>,
+    variables: HashMap<String, Expression>,
 ) -> Result<Vec<Stage>> {
     // replace parent entity fieldRefs with variableRefs. These can be potentially
     // optimized out with movement, but they may not be if a given conjunctive
     // subexpression also uses the child entity
-    let theta = HashMap::new();
     let mut lookup_pipeline = vec![Stage::Project(ProjectStage {
         items: map! {
             subassemble.entity.to_string() => ProjectItem::Assignment(Expression::Ref(Ref::VariableRef("ROOT".to_string()))),
             "_id".to_string() => ProjectItem::Exclusion,
         },
     })];
+    let theta = variables.clone();
+    dbg!("theta", &theta);
     if let Some(filter) = subassemble.filter {
         lookup_pipeline.push(Stage::Match(MatchStage {
             expr: vec![MatchExpression::Expr(MatchExpr {
-                expr: Box::new(filter.substitute(theta)),
+                expr: Box::new(Expression::UntaggedOperator(UntaggedOperator {
+                    op: UntaggedOperatorName::And,
+                    args: vec![
+                        filter.substitute(theta.clone()),
+                        constraint.filter.clone().substitute(theta),
+                    ],
+                })),
+            })],
+            numbering: None,
+        }));
+    } else {
+        lookup_pipeline.push(Stage::Match(MatchStage {
+            expr: vec![MatchExpression::Expr(MatchExpr {
+                expr: Box::new(constraint.filter.clone().substitute(theta)),
             })],
             numbering: None,
         }));
     }
+    dbg!("filter", &lookup_pipeline.last());
     // add recursive sub assemblies
     let parent_entity = subassemble.entity.to_string();
-    for subassemble in subassemble.subassemble.iter().flatten() {
+    for subassemble in subassemble.subassemble.into_iter().flatten() {
         lookup_pipeline.push(generate_subassemble(
             parent_entity.as_str(),
-            subassemble.clone(),
+            subassemble,
             entity_graph,
             entities,
+            variables.clone(),
         )?)
     }
     Ok(lookup_pipeline)
 }
 
 fn handle_reference_constraint(
+    parent_entity: &str,
     subassemble: Subassemble,
     constraint: &Constraint,
     entity_graph: &HashMap<String, HashMap<String, Constraint>>,
     entities: &HashMap<String, Entity>,
+    mut variables: HashMap<String, Expression>,
 ) -> Result<Stage> {
     let mut pipeline = Vec::new();
     // all of the grandparent_entities are in scope as variables, the parent entity
@@ -423,10 +464,15 @@ fn handle_reference_constraint(
         .get(subassemble.entity.as_str())
         .ok_or(Error::EntityMissingFromErd(subassemble.entity.clone()))?;
     let collection = subassemble_entity.collection.clone();
-    let lookup_pipeline = generate_lookup_pipeline(subassemble, entity_graph, entities)?;
+    variables.insert(
+        parent_entity.to_string(),
+        Expression::Ref(Ref::VariableRef(parent_entity.to_string())),
+    );
+    let lookup_pipeline =
+        generate_lookup_pipeline(subassemble, constraint, entity_graph, entities, variables)?;
     pipeline.push(Stage::Lookup(Lookup::Subquery(SubqueryLookup {
         from: Some(LookupFrom::Collection(collection)),
-        let_body: None,
+        let_body: Some(map! {parent_entity.to_string() => Expression::Ref(Ref::FieldRef(parent_entity.to_string()))}),
         pipeline: Pipeline {
             pipeline: lookup_pipeline,
         },
@@ -450,27 +496,32 @@ fn handle_reference_constraint(
 }
 
 fn handle_embedded_constraint(
+    parent_entity: &str,
     subassemble: Subassemble,
     constraint: &Constraint,
     entity_graph: &HashMap<String, HashMap<String, Constraint>>,
     entities: &HashMap<String, Entity>,
+    variables: HashMap<String, Expression>,
 ) -> Result<Stage> {
     let mut pipeline = Vec::new();
     let target_path = constraint
         .target_path
         .as_ref()
         .ok_or_else(|| Error::MissingTargetPathInEmbedded(print_json!(constraint)))?;
+    let target_ref = Expression::Ref(Ref::FieldRef(
+        format!("{}.{}", parent_entity, target_path).to_string(),
+    ));
     pipeline.push(Stage::Unwind(Unwind::Document(UnwindExpr {
-        path: Box::new(Expression::Ref(Ref::FieldRef(target_path.clone()))),
+        path: Box::new(target_ref.clone()),
         preserve_null_and_empty_arrays: Some(subassemble.join == Some(AssembleJoinType::Left)),
         include_array_index: None,
     })));
     pipeline.push(Stage::Project(ProjectStage {
-                items: map! {
-                    subassemble.entity.clone() => ProjectItem::Assignment(Expression::Ref(Ref::FieldRef(target_path.to_string()))),
-                    "_id".to_string() => ProjectItem::Exclusion,
-                },
-            }));
+        items: map! {
+            subassemble.entity.clone() => ProjectItem::Assignment(target_ref),
+            "_id".to_string() => ProjectItem::Exclusion,
+        },
+    }));
     if let Some(filter) = subassemble.filter {
         pipeline.push(Stage::Match(MatchStage {
             expr: vec![MatchExpression::Expr(MatchExpr {
@@ -487,6 +538,7 @@ fn handle_embedded_constraint(
             subassemble,
             entity_graph,
             entities,
+            variables.clone(),
         )?)
     }
     Ok(Stage::SubPipeline(Pipeline { pipeline }))
