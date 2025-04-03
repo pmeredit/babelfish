@@ -506,9 +506,9 @@ impl<'a> AssembleGenerator<'a> {
                             Expression::TaggedOperator(TaggedOperator::Filter(
                                     Filter {
                                         input: Box::new(target_ref.clone()),
-                                        cond: Box::new(filter.substitute(dbg!(map! {
+                                        cond: Box::new(filter.substitute(map! {
                                             subassemble.entity.clone() => Expression::Ref(Ref::VariableRef("this".to_string())),
-                                        }))),
+                                        })),
                                         _as: None,
                                         limit: None,
                                     }
