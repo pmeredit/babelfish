@@ -1,8 +1,9 @@
 use ast::{
     definitions::{
-        visitor::Visitor, Assemble, AssembleJoinType, Expression, Lookup, LookupFrom, MatchExpr,
-        MatchExpression, MatchStage, Pipeline, ProjectItem, ProjectStage, Ref, Stage, Subassemble,
-        SubqueryLookup, UntaggedOperator, UntaggedOperatorName, Unwind, UnwindExpr,
+        visitor::Visitor, Assemble, AssembleJoinType, Expression, Filter, Lookup, LookupFrom,
+        MatchExpr, MatchExpression, MatchStage, Pipeline, ProjectItem, ProjectStage, Ref, Stage,
+        Subassemble, SubqueryLookup, TaggedOperator, UntaggedOperator, UntaggedOperatorName,
+        Unwind, UnwindExpr,
     },
     map,
 };
@@ -496,24 +497,54 @@ impl<'a> AssembleGenerator<'a> {
         let target_ref = Expression::Ref(Ref::FieldRef(
             format!("{}.{}", parent_entity, target_path).to_string(),
         ));
-        pipeline.push(Stage::Unwind(Unwind::Document(UnwindExpr {
-            path: Box::new(target_ref.clone()),
-            preserve_null_and_empty_arrays: Some(subassemble.join == Some(AssembleJoinType::Left)),
-            include_array_index: None,
-        })));
-        pipeline.push(Stage::Project(ProjectStage {
-            items: map! {
-                subassemble.entity.clone() => ProjectItem::Assignment(target_ref),
-                "_id".to_string() => ProjectItem::Exclusion,
-            },
-        }));
-        if let Some(filter) = subassemble.filter {
-            pipeline.push(Stage::Match(MatchStage {
-                expr: vec![MatchExpression::Expr(MatchExpr {
-                    expr: Box::new(filter.clone()),
-                })],
-                numbering: None,
+        // left join
+        if subassemble.join == Some(AssembleJoinType::Left) {
+            if let Some(filter) = subassemble.filter {
+                pipeline.push(Stage::Project(ProjectStage {
+                    items: map! {
+                        subassemble.entity.clone() => ProjectItem::Assignment(
+                            Expression::TaggedOperator(TaggedOperator::Filter(
+                                    Filter {
+                                        input: Box::new(target_ref.clone()),
+                                        cond: Box::new(filter.substitute(dbg!(map! {
+                                            subassemble.entity.clone() => Expression::Ref(Ref::VariableRef("this".to_string())),
+                                        }))),
+                                        _as: None,
+                                        limit: None,
+                                    }
+
+                            )
+                        )),
+                        "_id".to_string() => ProjectItem::Exclusion,
+                    },
+                }));
+            }
+            pipeline.push(Stage::Unwind(Unwind::Document(UnwindExpr {
+                path: Box::new(Expression::Ref(Ref::FieldRef(subassemble.entity.clone()))),
+                preserve_null_and_empty_arrays: Some(true),
+                include_array_index: None,
+            })));
+        // inner join
+        } else {
+            pipeline.push(Stage::Unwind(Unwind::Document(UnwindExpr {
+                path: Box::new(target_ref.clone()),
+                preserve_null_and_empty_arrays: None,
+                include_array_index: None,
+            })));
+            pipeline.push(Stage::Project(ProjectStage {
+                items: map! {
+                    subassemble.entity.clone() => ProjectItem::Assignment(target_ref),
+                    "_id".to_string() => ProjectItem::Exclusion,
+                },
             }));
+            if let Some(filter) = subassemble.filter {
+                pipeline.push(Stage::Match(MatchStage {
+                    expr: vec![MatchExpression::Expr(MatchExpr {
+                        expr: Box::new(filter.clone()),
+                    })],
+                    numbering: None,
+                }));
+            }
         }
         // add recursive sub assemblies
         let parent_entity = subassemble.entity.to_string();

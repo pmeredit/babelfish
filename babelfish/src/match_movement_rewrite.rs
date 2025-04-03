@@ -194,8 +194,11 @@ impl Visitor for SubpipelineMatchMover {
             // now get a mutable reference to that stage. The borrow checker makes this a bit cumbersome
             let mut stage = std::mem::take(pipeline.pipeline.get_mut(i).unwrap());
             match stage {
-                // only supporting SubqueryLookup for now
-                Stage::Lookup(Lookup::Subquery(ref mut subquery)) => {
+                // only supporting SubqueryLookup for now, and we also cannot move out of left
+                // joins.
+                Stage::Lookup(Lookup::Subquery(ref mut subquery))
+                    if subquery.is_left_join != Some(true) =>
+                {
                     let mut j = 0;
                     // move all match stages at the beginning of the subpipeline into the parent
                     // iff there are no field uses in the subpipeline, substitute any variable

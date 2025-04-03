@@ -91,7 +91,7 @@
                     "accountId": {
                         "entity": "Account",
                         "field": "_id",
-                        "relationshipType": "one-one",
+                        "relationshipType": "many-one",
                         "storageConstraints": [
                             {
                                 "constraintType": "embedded",
