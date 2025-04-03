@@ -571,7 +571,7 @@ pub struct SubqueryLookup {
     pub pipeline: Pipeline,
     #[serde(rename = "as")]
     pub as_var: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip)]
     pub is_left_join: Option<bool>,
 }
 
