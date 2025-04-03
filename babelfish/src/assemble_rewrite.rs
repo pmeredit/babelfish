@@ -463,6 +463,7 @@ impl<'a> AssembleGenerator<'a> {
             pipeline: lookup_pipeline,
         },
         as_var: entity_name.clone(),
+        is_left_join: Some(join_type == AssembleJoinType::Left),
     })));
         pipeline.push(
                 Stage::Project(
