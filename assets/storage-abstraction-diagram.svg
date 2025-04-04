@@ -37,7 +37,7 @@
   <text x="170" y="90" class="code-text">{ </text>
   <text x="180" y="105" class="code-text"><tspan class="json-key">"entity"</tspan>: <tspan class="json-string">"Customer"</tspan>,</text>
   <text x="180" y="120" class="code-text"><tspan class="json-key">"subassemble"</tspan>: [{ <tspan class="json-key">"entity"</tspan>: <tspan class="json-string">"Order"</tspan>,</text>
-  <text x="200" y="135" class="code-text"><tspan class="json-key">"filter"</tspan>: { <tspan class="json-key">"amount"</tspan>: { <tspan class="json-key">"$gte"</tspan>: 100 } } }]</text>
+    <text x="200" y="135" class="code-text"><tspan class="json-key">"filter"</tspan>: {<tspan class="json-key">"$gte":</tspan> [$Order.amount, 100]}}]</text>
 
   <!-- Connection arrow -->
   <line x1="400" y1="150" x2="400" y2="188" class="arrow"/>
