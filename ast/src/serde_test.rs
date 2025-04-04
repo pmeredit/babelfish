@@ -51,6 +51,7 @@ macro_rules! test_match_bin_op {
         test_serde_stage!(
             $func_name,
             expected = Stage::Match(MatchStage {
+                numbering: None,
                 expr: vec![MatchExpression::Field(MatchField {
                     field: Ref::FieldRef("a".to_string()),
                     ops: map! { $expected_op =>  bson::Bson::Int32(1) }
@@ -66,6 +67,7 @@ macro_rules! test_match_logical_vararg {
         test_serde_stage!(
             $func_name,
             expected = Stage::Match(MatchStage {
+                numbering: None,
                 expr: vec![MatchExpression::Logical($expected_op(vec![
                     MatchExpression::Field(MatchField {
                         field: Ref::FieldRef("a".to_string()),
@@ -294,6 +296,7 @@ mod stage_test {
         test_serde_stage!(
             elem_match_value,
             expected = Stage::Match(MatchStage {
+                numbering: None,
                 expr: vec![MatchExpression::Misc(MatchMisc::Element(MatchElement {
                     field: Ref::FieldRef("x".to_string()),
                     query: MatchArrayExpression::Value(map! {
@@ -308,6 +311,7 @@ mod stage_test {
         test_serde_stage!(
             elem_match_fields_binaries,
             expected = Stage::Match(MatchStage {
+                numbering: None,
                 expr: vec![MatchExpression::Misc(MatchMisc::Element(MatchElement {
                     field: Ref::FieldRef("x".to_string()),
                     query: MatchArrayExpression::Query(MatchArrayQuery {
@@ -330,6 +334,7 @@ mod stage_test {
         test_serde_stage!(
             elem_match_fields_or,
             expected = Stage::Match(MatchStage {
+                numbering: None,
                 expr: vec![MatchExpression::Misc(MatchMisc::Element(MatchElement {
                     field: Ref::FieldRef("x".to_string()),
                     query: MatchArrayExpression::Query(MatchArrayQuery {
@@ -364,6 +369,7 @@ mod stage_test {
         test_serde_stage!(
             expr,
             expected = Stage::Match(MatchStage {
+                numbering: None,
                 expr: vec![MatchExpression::Expr(MatchExpr {
                     expr: Box::new(Expression::UntaggedOperator(UntaggedOperator {
                         op: UntaggedOperatorName::SQLEq,
@@ -380,6 +386,7 @@ mod stage_test {
         test_serde_stage!(
             implicit_eq,
             expected = Stage::Match(MatchStage {
+                numbering: None,
                 expr: vec![MatchExpression::Field(MatchField {
                     field: Ref::FieldRef("a".to_string()),
                     ops: map! { MatchBinaryOp::Eq =>  bson::Bson::Int32(1) }
@@ -457,6 +464,7 @@ mod stage_test {
         test_serde_stage!(
             multi_conditions_on_field,
             expected = Stage::Match(MatchStage {
+                numbering: None,
                 expr: vec![MatchExpression::Field(MatchField {
                     field: Ref::FieldRef("a".to_string()),
                     ops: map! {
@@ -471,6 +479,7 @@ mod stage_test {
         test_serde_stage!(
             multi_fields_in_match_stage,
             expected = Stage::Match(MatchStage {
+                numbering: None,
                 expr: vec![
                     MatchExpression::Field(MatchField {
                         field: Ref::FieldRef("a".to_string()),
@@ -492,6 +501,7 @@ mod stage_test {
         test_serde_stage!(
             not_element,
             expected = Stage::Match(MatchStage {
+                numbering: None,
                 expr: vec![MatchExpression::Logical(MatchLogical::Not(MatchNot {
                     field: Ref::FieldRef("a".to_string()),
                     expr: MatchNotExpression::Element(MatchArrayExpression::Value(map! {
@@ -506,6 +516,7 @@ mod stage_test {
         test_serde_stage!(
             not_query,
             expected = Stage::Match(MatchStage {
+                numbering: None,
                 expr: vec![MatchExpression::Logical(MatchLogical::Not(MatchNot {
                     field: Ref::FieldRef("bar".to_string()),
                     expr: MatchNotExpression::Query(map! {
@@ -520,6 +531,7 @@ mod stage_test {
         test_serde_stage!(
             not_regex,
             expected = Stage::Match(MatchStage {
+                numbering: None,
                 expr: vec![MatchExpression::Logical(MatchLogical::Not(MatchNot {
                     field: Ref::FieldRef("bar".to_string()),
                     expr: MatchNotExpression::Regex(bson::Bson::String("hello world!".to_string())),
@@ -531,6 +543,7 @@ mod stage_test {
         test_serde_stage!(
             where_expr,
             expected = Stage::Match(MatchStage {
+                numbering: None,
                 expr: vec![MatchExpression::Misc(MatchMisc::Where(MatchWhere {
                     code: bson::Bson::String("function() { return this.isGood == 42 }".to_string()),
                 })),]
@@ -541,6 +554,7 @@ mod stage_test {
         test_serde_stage!(
             text,
             expected = Stage::Match(MatchStage {
+                numbering: None,
                 expr: vec![MatchExpression::Misc(MatchMisc::Text(MatchText {
                     expr: MatchTextContents {
                         search: "Coffee".to_string(),
@@ -556,6 +570,7 @@ mod stage_test {
         test_serde_stage!(
             json_schema,
             expected = Stage::Match(MatchStage {
+                numbering: None,
                 expr: vec![MatchExpression::Misc(MatchMisc::JsonSchema(
                     MatchJsonSchema {
                         schema: bson::Bson::Document(
@@ -570,6 +585,7 @@ mod stage_test {
         test_serde_stage!(
             regex_no_options,
             expected = Stage::Match(MatchStage {
+                numbering: None,
                 expr: vec![MatchExpression::Misc(MatchMisc::Regex(MatchRegex {
                     field: Ref::FieldRef("x".to_string()),
                     pattern: bson::Bson::String("hello".to_string()),
@@ -582,6 +598,7 @@ mod stage_test {
         test_serde_stage!(
             regex_options,
             expected = Stage::Match(MatchStage {
+                numbering: None,
                 expr: vec![MatchExpression::Misc(MatchMisc::Regex(MatchRegex {
                     field: Ref::FieldRef("x".to_string()),
                     pattern: bson::Bson::String("hello".to_string()),
@@ -594,6 +611,7 @@ mod stage_test {
         test_serde_stage!(
             mixed_match_top_level,
             expected = Stage::Match(MatchStage {
+                numbering: None,
                 expr: vec![
                     MatchExpression::Misc(MatchMisc::Comment(MatchComment {
                         comment: "hello!".to_string()
@@ -724,8 +742,8 @@ mod stage_test {
     mod join {
         use crate::{
             definitions::{
-                Expression, Join, JoinType, LiteralValue, ProjectItem, ProjectStage, Ref, Stage,
-                UntaggedOperator, UntaggedOperatorName,
+                Expression, Join, JoinType, LiteralValue, Pipeline, ProjectItem, ProjectStage, Ref,
+                Stage, UntaggedOperator, UntaggedOperatorName,
             },
             map,
         };
@@ -737,7 +755,7 @@ mod stage_test {
                 collection: Some("bar".to_string()),
                 let_body: None,
                 join_type: JoinType::Inner,
-                pipeline: vec![],
+                pipeline: Pipeline { pipeline: vec![] },
                 condition: None
             })),
             input =
@@ -751,7 +769,7 @@ mod stage_test {
                 collection: Some("bar".to_string()),
                 let_body: None,
                 join_type: JoinType::Left,
-                pipeline: vec![],
+                pipeline: Pipeline { pipeline: vec![] },
                 condition: None
             })),
             input = r#"stage: { "$join":
@@ -771,11 +789,13 @@ mod stage_test {
                 collection: None,
                 let_body: None,
                 join_type: JoinType::Inner,
-                pipeline: vec![Stage::Documents(vec![
-                    map! {"a".to_string() => Expression::Literal(LiteralValue::Int32(1)) },
-                    map! {"a".to_string() => Expression::Literal(LiteralValue::Int32(2)) },
-                    map! {"a".to_string() => Expression::Literal(LiteralValue::Int32(3)) },
-                ])],
+                pipeline: Pipeline {
+                    pipeline: vec![Stage::Documents(vec![
+                        map! {"a".to_string() => Expression::Literal(LiteralValue::Int32(1)) },
+                        map! {"a".to_string() => Expression::Literal(LiteralValue::Int32(2)) },
+                        map! {"a".to_string() => Expression::Literal(LiteralValue::Int32(3)) },
+                    ])]
+                },
                 condition: None
             })),
             input = r#"stage: {
@@ -797,12 +817,14 @@ mod stage_test {
                     "x".to_string() => Expression::Ref(Ref::FieldRef("x".to_string()))
                 }),
                 join_type: JoinType::Inner,
-                pipeline: vec![Stage::Project(ProjectStage {
-                    items: map! {
-                        "_id".to_string() => ProjectItem::Exclusion,
-                        "x".to_string() => ProjectItem::Inclusion,
-                    }
-                })],
+                pipeline: Pipeline {
+                    pipeline: vec![Stage::Project(ProjectStage {
+                        items: map! {
+                            "_id".to_string() => ProjectItem::Exclusion,
+                            "x".to_string() => ProjectItem::Inclusion,
+                        }
+                    })]
+                },
                 condition: Some(Expression::UntaggedOperator(UntaggedOperator {
                     op: UntaggedOperatorName::SQLEq,
                     args: vec![
@@ -831,21 +853,25 @@ mod stage_test {
                 collection: Some("bar".to_string()),
                 let_body: None,
                 join_type: JoinType::Inner,
-                pipeline: vec![Stage::Join(Box::new(Join {
-                    database: None,
-                    collection: Some("baz".to_string()),
-                    join_type: JoinType::Inner,
-                    let_body: None,
+                pipeline: Pipeline {
                     pipeline: vec![Stage::Join(Box::new(Join {
                         database: None,
-                        collection: Some("car".to_string()),
+                        collection: Some("baz".to_string()),
                         join_type: JoinType::Inner,
                         let_body: None,
-                        pipeline: vec![],
+                        pipeline: Pipeline {
+                            pipeline: vec![Stage::Join(Box::new(Join {
+                                database: None,
+                                collection: Some("car".to_string()),
+                                join_type: JoinType::Inner,
+                                let_body: None,
+                                pipeline: Pipeline { pipeline: vec![] },
+                                condition: None
+                            }))]
+                        },
                         condition: None
-                    }))],
-                    condition: None
-                }))],
+                    }))]
+                },
                 condition: None
             })),
             input = r#"stage: {
@@ -883,8 +909,9 @@ mod stage_test {
         use crate::{
             definitions::{
                 ConciseSubqueryLookup, EqualityLookup, Expression, LiteralValue, Lookup,
-                LookupFrom, MatchExpr, MatchExpression, MatchStage, Namespace, ProjectItem,
-                ProjectStage, Ref, Stage, SubqueryLookup, UntaggedOperator, UntaggedOperatorName,
+                LookupFrom, MatchExpr, MatchExpression, MatchStage, Namespace, Pipeline,
+                ProjectItem, ProjectStage, Ref, Stage, SubqueryLookup, UntaggedOperator,
+                UntaggedOperatorName,
             },
             map,
         };
@@ -892,19 +919,21 @@ mod stage_test {
         test_serde_stage!(
             subquery_lookup_with_no_optional_fields,
             expected = Stage::Lookup(Lookup::Subquery(SubqueryLookup {
+                is_left_join: None,
                 from: None,
                 let_body: None,
-                pipeline: vec![],
-                as_var: "as_var".to_string()
+                pipeline: Pipeline { pipeline: vec![] },
+                as_var: "as_var".to_string(),
             })),
             input = r#"stage: {"$lookup": {"pipeline": [], "as": "as_var"}}"#
         );
         test_serde_stage!(
             subquery_lookup_from_collection,
             expected = Stage::Lookup(Lookup::Subquery(SubqueryLookup {
+                is_left_join: None,
                 from: Some(LookupFrom::Collection("from_coll".to_string())),
                 let_body: None,
-                pipeline: vec![],
+                pipeline: Pipeline { pipeline: vec![] },
                 as_var: "as_var".to_string()
             })),
             input = r#"stage: {"$lookup": {"from": "from_coll", "pipeline": [], "as": "as_var"}}"#
@@ -913,12 +942,13 @@ mod stage_test {
         test_serde_stage!(
             subquery_lookup_from_namespace,
             expected = Stage::Lookup(Lookup::Subquery(SubqueryLookup {
+                is_left_join: None,
                 from: Some(LookupFrom::Namespace(Namespace {
                     db: "from_db".to_string(),
                     coll: "from_coll".to_string()
                 })),
                 let_body: None,
-                pipeline: vec![],
+                pipeline: Pipeline { pipeline: vec![] },
                 as_var: "as_var".to_string()
             })),
             input = r#"stage: {"$lookup": {"from": {"db": "from_db", "coll": "from_coll"}, "pipeline": [], "as": "as_var"}}"#
@@ -927,6 +957,7 @@ mod stage_test {
         test_serde_stage!(
             subquery_lookup_with_single_let_var,
             expected = Stage::Lookup(Lookup::Subquery(SubqueryLookup {
+                is_left_join: None,
                 from: Some(LookupFrom::Namespace(Namespace {
                     db: "from_db".to_string(),
                     coll: "from_coll".to_string()
@@ -934,7 +965,7 @@ mod stage_test {
                 let_body: Some(map! {
                     "x".to_string() => Expression::Literal(LiteralValue::Int32(9))
                 }),
-                pipeline: vec![],
+                pipeline: Pipeline { pipeline: vec![] },
                 as_var: "as_var".to_string()
             })),
             input = r#"stage: {"$lookup": {
@@ -948,6 +979,7 @@ mod stage_test {
         test_serde_stage!(
             subquery_lookup_with_multiple_let_vars,
             expected = Stage::Lookup(Lookup::Subquery(SubqueryLookup {
+                is_left_join: None,
                 from: Some(LookupFrom::Namespace(Namespace {
                     db: "from_db".to_string(),
                     coll: "from_coll".to_string()
@@ -956,7 +988,7 @@ mod stage_test {
                     "x".to_string() => Expression::Literal(LiteralValue::Int32(9)),
                     "y".to_string() => Expression::Ref(Ref::FieldRef("z".to_string())),
                 }),
-                pipeline: vec![],
+                pipeline: Pipeline { pipeline: vec![] },
                 as_var: "as_var".to_string()
             })),
             input = r#"stage: {"$lookup": {
@@ -973,6 +1005,7 @@ mod stage_test {
         test_serde_stage!(
             subquery_lookup_with_pipeline,
             expected = Stage::Lookup(Lookup::Subquery(SubqueryLookup {
+                is_left_join: None,
                 from: Some(LookupFrom::Namespace(Namespace {
                     db: "db".to_string(),
                     coll: "bar".to_string()
@@ -980,25 +1013,28 @@ mod stage_test {
                 let_body: Some(map! {
                     "foo_b_0".to_string() => Expression::Ref(Ref::FieldRef("b".to_string())),
                 }),
-                pipeline: vec![
-                    Stage::Match(MatchStage {
-                        expr: vec![MatchExpression::Expr(MatchExpr {
-                            expr: Box::new(Expression::UntaggedOperator(UntaggedOperator {
-                                op: UntaggedOperatorName::Eq,
-                                args: vec![
-                                    Expression::Ref(Ref::VariableRef("foo_b_0".to_string())),
-                                    Expression::Ref(Ref::FieldRef("b".to_string()))
-                                ]
-                            }))
-                        })]
-                    }),
-                    Stage::Project(ProjectStage {
-                        items: map! {
-                            "_id".to_string() => ProjectItem::Exclusion,
-                            "a".to_string() => ProjectItem::Inclusion,
-                        }
-                    })
-                ],
+                pipeline: Pipeline {
+                    pipeline: vec![
+                        Stage::Match(MatchStage {
+                            numbering: None,
+                            expr: vec![MatchExpression::Expr(MatchExpr {
+                                expr: Box::new(Expression::UntaggedOperator(UntaggedOperator {
+                                    op: UntaggedOperatorName::Eq,
+                                    args: vec![
+                                        Expression::Ref(Ref::VariableRef("foo_b_0".to_string())),
+                                        Expression::Ref(Ref::FieldRef("b".to_string()))
+                                    ]
+                                }))
+                            })]
+                        }),
+                        Stage::Project(ProjectStage {
+                            items: map! {
+                                "_id".to_string() => ProjectItem::Exclusion,
+                                "a".to_string() => ProjectItem::Inclusion,
+                            }
+                        })
+                    ]
+                },
                 as_var: "__subquery_result_0".to_string()
             })),
             input = r#"stage: {
@@ -1020,7 +1056,7 @@ mod stage_test {
             expected = Stage::Lookup(Lookup::ConciseSubquery(ConciseSubqueryLookup {
                 from: None,
                 let_body: None,
-                pipeline: vec![],
+                pipeline: Pipeline { pipeline: vec![] },
                 as_var: "as_var".to_string(),
                 local_field: "foo".to_string(),
                 foreign_field: "bar".to_string()
@@ -1035,25 +1071,28 @@ mod stage_test {
                 let_body: Some(map! {
                     "foo_b_0".to_string() => Expression::Ref(Ref::FieldRef("b".to_string())),
                 }),
-                pipeline: vec![
-                    Stage::Match(MatchStage {
-                        expr: vec![MatchExpression::Expr(MatchExpr {
-                            expr: Box::new(Expression::UntaggedOperator(UntaggedOperator {
-                                op: UntaggedOperatorName::Eq,
-                                args: vec![
-                                    Expression::Ref(Ref::VariableRef("foo_b_0".to_string())),
-                                    Expression::Ref(Ref::FieldRef("b".to_string()))
-                                ]
-                            }))
-                        })]
-                    }),
-                    Stage::Project(ProjectStage {
-                        items: map! {
-                            "_id".to_string() => ProjectItem::Exclusion,
-                            "a".to_string() => ProjectItem::Inclusion,
-                        }
-                    })
-                ],
+                pipeline: Pipeline {
+                    pipeline: vec![
+                        Stage::Match(MatchStage {
+                            numbering: None,
+                            expr: vec![MatchExpression::Expr(MatchExpr {
+                                expr: Box::new(Expression::UntaggedOperator(UntaggedOperator {
+                                    op: UntaggedOperatorName::Eq,
+                                    args: vec![
+                                        Expression::Ref(Ref::VariableRef("foo_b_0".to_string())),
+                                        Expression::Ref(Ref::FieldRef("b".to_string()))
+                                    ]
+                                }))
+                            })]
+                        }),
+                        Stage::Project(ProjectStage {
+                            items: map! {
+                                "_id".to_string() => ProjectItem::Exclusion,
+                                "a".to_string() => ProjectItem::Inclusion,
+                            }
+                        })
+                    ]
+                },
                 as_var: "__subquery_result_0".to_string(),
                 local_field: "foo".to_string(),
                 foreign_field: "bar".to_string()
@@ -1673,7 +1712,7 @@ mod stage_test {
 
     mod facet {
         use crate::{
-            definitions::{ProjectItem, ProjectStage, Stage},
+            definitions::{Pipeline, ProjectItem, ProjectStage, Stage},
             map,
         };
 
@@ -1686,7 +1725,7 @@ mod stage_test {
         test_serde_stage!(
             single,
             expected = Stage::Facet(map! {
-                "outputField1".to_string() => vec![Stage::Count("x".to_string())]
+                "outputField1".to_string() => Pipeline { pipeline: vec![Stage::Count("x".to_string())] }
             }),
             input = r#"stage: {"$facet": {
                 "outputField1": [{"$count": "x"}]
@@ -1696,16 +1735,15 @@ mod stage_test {
         test_serde_stage!(
             multiple,
             expected = Stage::Facet(map! {
-                "o1".to_string() => vec![Stage::Limit(10)],
-                "outputField2".to_string() => vec![
-                    Stage::Project(ProjectStage {
-                        items: map! {
-                            "_id".to_string() => ProjectItem::Exclusion,
-                        },
-                    }),
-                    Stage::Count("x".to_string()),
-                ],
-            }),
+            "o1".to_string() => Pipeline{ pipeline: vec![Stage::Limit(10)] },
+            "outputField2".to_string() => Pipeline{ pipeline: vec![
+                Stage::Project(ProjectStage {
+                    items: map! {
+                        "_id".to_string() => ProjectItem::Exclusion,
+                    },
+                }),
+                Stage::Count("x".to_string()),
+            ]}}),
             input = r#"stage: {"$facet": {
                 "o1": [{"$limit": 10}],
                 "outputField2": [{"$project": {"_id": 0}}, {"$count": "x"}],
@@ -1874,13 +1912,13 @@ mod stage_test {
     }
 
     mod union_with {
-        use crate::definitions::{Stage, UnionWith, UnionWithPipeline};
+        use crate::definitions::{Pipeline, Stage, UnionWith, UnionWithPipeline};
 
         test_serde_stage!(
             empty_pipeline,
             expected = Stage::UnionWith(UnionWith::Pipeline(UnionWithPipeline {
                 collection: "empty".to_string(),
-                pipeline: vec![],
+                pipeline: Pipeline { pipeline: vec![] },
             })),
             input = r#"stage: {"$unionWith": {
                 "collection": "empty",
@@ -1892,7 +1930,9 @@ mod stage_test {
             singleton_pipeline,
             expected = Stage::UnionWith(UnionWith::Pipeline(UnionWithPipeline {
                 collection: "single".to_string(),
-                pipeline: vec![Stage::Limit(10)],
+                pipeline: Pipeline {
+                    pipeline: vec![Stage::Limit(10)]
+                },
             })),
             input = r#"stage: {"$unionWith": {
                 "collection": "single",
@@ -1904,7 +1944,9 @@ mod stage_test {
             multiple_element_pipeline,
             expected = Stage::UnionWith(UnionWith::Pipeline(UnionWithPipeline {
                 collection: "multiple".to_string(),
-                pipeline: vec![Stage::Skip(5), Stage::Limit(10)],
+                pipeline: Pipeline {
+                    pipeline: vec![Stage::Skip(5), Stage::Limit(10)]
+                },
             })),
             input = r#"stage: {"$unionWith": {
                 "collection": "multiple",
@@ -2186,10 +2228,11 @@ mod expression_test {
                 Accumulator, Bottom, BottomN, Convert, DateAdd, DateDiff, DateExpression,
                 DateFromParts, DateFromString, DateSubtract, DateToParts, DateToString, DateTrunc,
                 Expression, Filter, Function, GetField, Let, Like, LiteralValue, Map, Median,
-                NArrayOp, Percentile, ProjectItem, ProjectStage, Reduce, Ref, RegexAggExpression,
-                Replace, SQLConvert, SQLDivide, SetField, SortArray, SortArraySpec, Stage,
-                Subquery, SubqueryComparison, SubqueryExists, Switch, SwitchCase, TaggedOperator,
-                Top, TopN, Trim, UnsetField, UntaggedOperator, UntaggedOperatorName, Zip,
+                NArrayOp, Percentile, Pipeline, ProjectItem, ProjectStage, Reduce, Ref,
+                RegexAggExpression, Replace, SQLConvert, SQLDivide, SetField, SortArray,
+                SortArraySpec, Stage, Subquery, SubqueryComparison, SubqueryExists, Switch,
+                SwitchCase, TaggedOperator, Top, TopN, Trim, UnsetField, UntaggedOperator,
+                UntaggedOperatorName, Zip,
             },
             map,
         };
@@ -2587,9 +2630,11 @@ mod expression_test {
                 collection: Some("bar".to_string()),
                 let_bindings: None,
                 output_path: Some(vec!["x".to_string()]),
-                pipeline: vec![Stage::Project(ProjectStage {
-                    items: map! {"x".to_string() => ProjectItem::Inclusion}
-                })]
+                pipeline: Pipeline {
+                    pipeline: vec![Stage::Project(ProjectStage {
+                        items: map! {"x".to_string() => ProjectItem::Inclusion}
+                    })]
+                },
             })),
             input = r#"expr: {"$subquery": {
                             "db": "foo",
@@ -2617,12 +2662,14 @@ mod expression_test {
                         collection: Some("bar".to_string()),
                         let_bindings: None,
                         output_path: Some(vec!["x".to_string()]),
-                        pipeline: vec![
-                            Stage::Documents(vec![]),
-                            Stage::Project(ProjectStage {
-                                items: map! {"x".to_string() => ProjectItem::Inclusion}
-                            })
-                        ]
+                        pipeline: Pipeline {
+                            pipeline: vec![
+                                Stage::Documents(vec![]),
+                                Stage::Project(ProjectStage {
+                                    items: map! {"x".to_string() => ProjectItem::Inclusion}
+                                })
+                            ]
+                        }
                     }
                     .into()
                 }
@@ -2652,9 +2699,11 @@ mod expression_test {
                 db: Some("foo".to_string()),
                 collection: Some("bar".to_string()),
                 let_bindings: None,
-                pipeline: vec![Stage::Project(ProjectStage {
-                    items: map! {"x".to_string() => ProjectItem::Inclusion}
-                })]
+                pipeline: Pipeline {
+                    pipeline: vec![Stage::Project(ProjectStage {
+                        items: map! {"x".to_string() => ProjectItem::Inclusion}
+                    })]
+                },
             })),
             input = r#"expr: {"$subqueryExists": {
                             "db": "foo",

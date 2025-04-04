@@ -1,6 +1,6 @@
 [
     {"$assemble": {
-        "erd": "./assets/schema.json",
+        "erd": "./assets/schema1.json",
         "entity": "Customer",
         "project": ["customerAddress", "customerName"],
         "subassemble": [{

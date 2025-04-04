@@ -154,6 +154,15 @@ pub enum Direction {
     Child,
 }
 
+impl Direction {
+    pub fn inverse(&self) -> Self {
+        match self {
+            Direction::Parent => Direction::Child,
+            Direction::Child => Direction::Parent,
+        }
+    }
+}
+
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StorageConstraint {

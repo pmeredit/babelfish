@@ -1,17 +1,17 @@
 [
     {"$assemble": {
-        "erd": "./assets/schema.json",
+        "erd": "./assets/schema1.json",
         "entity": "Customer",
         "project": ["customerAddress", "customerName"],
         "subassemble": [{
             "entity": "Account",
-            "join": "inner",
+            "join": "left",
             "project": ["accountName"],
             "subassemble": [{
                 "entity": "Order",
-                "join": "inner",
+                "join": "left",
                 "project": ["amount"],
-                "filter": { "$gte": ["$Order.amount", 100] }
+                "filter": { "$gte": ["$Order.amount", 10] }
             }]
         }]
     }},

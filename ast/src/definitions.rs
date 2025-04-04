@@ -571,6 +571,8 @@ pub struct SubqueryLookup {
     pub pipeline: Pipeline,
     #[serde(rename = "as")]
     pub as_var: String,
+    #[serde(skip)]
+    pub is_left_join: Option<bool>,
 }
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
