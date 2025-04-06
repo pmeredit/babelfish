@@ -131,6 +131,7 @@ Key changes in the assembly format:
 The tool parses the specified $assemble config and generates the appropriate pipeline based on the specified schema or validates the specified schema file.
 
 // to run $assemble pipeline generation and optimization
+
 cargo run --bin babelfish-cli -- -p assets/simple_test.json
 
 cargo run --bin babelfish-cli -- -p assets/simple_test1.json
@@ -138,6 +139,7 @@ cargo run --bin babelfish-cli -- -p assets/simple_test1.json
 ^^ show embedded vs reference
 
 // to parse an ERD
+
 cargo run --bin babelfish-cli -- -e assets/simple_schema.json
 
 ## Schema and Assembly Examples
