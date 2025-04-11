@@ -8,7 +8,7 @@ use ast::{
     map,
 };
 use linked_hash_map::LinkedHashMap;
-use schema::{ConstraintType, Direction, Entity, Erd};
+use schema::{ConstraintType, Direction, Entity, Erd, RelationshipType};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use thiserror::Error;
@@ -86,6 +86,7 @@ fn graph_union<T>(
     a
 }
 
+// May end up using this at some point
 #[allow(dead_code)]
 fn minimal_ordering(graph: &HashMap<String, HashMap<String, Constraint>>) -> Vec<String> {
     let mut ordering = Vec::new();
@@ -221,6 +222,7 @@ impl Visitor for AssembleRewrite {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 struct Constraint {
+    relationship_type: RelationshipType,
     constraint_type: ConstraintType,
     filter: Expression,
     target_path: Option<String>,
@@ -230,6 +232,7 @@ struct Constraint {
 impl Constraint {
     fn inverse(&self) -> Constraint {
         Constraint {
+            relationship_type: self.relationship_type.clone(),
             constraint_type: self.constraint_type,
             filter: self.filter.clone(),
             target_path: self.target_path.clone(),
@@ -278,6 +281,7 @@ impl<'a> AssembleGenerator<'a> {
             )?;
             let target_path = storage_constraint.target_path.clone();
             let constraint = Constraint {
+                relationship_type: reference.relationship_type,
                 constraint_type: storage_constraint.constraint_type,
                 filter: Expression::UntaggedOperator(UntaggedOperator {
                     op: UntaggedOperatorName::Eq,
@@ -380,11 +384,8 @@ impl<'a> AssembleGenerator<'a> {
             ConstraintType::Reference => {
                 self.handle_reference_constraint(parent_entity, subassemble, edge_constraint)
             }
-            ConstraintType::Embedded => {
+            ConstraintType::Embedded | ConstraintType::Bucket => {
                 self.handle_embedded_constraint(parent_entity, subassemble, edge_constraint)
-            }
-            ConstraintType::Bucket => {
-                todo!();
             }
         }?];
         Ok(Stage::SubPipeline(Pipeline { pipeline }))
@@ -497,8 +498,10 @@ impl<'a> AssembleGenerator<'a> {
         let target_ref = Expression::Ref(Ref::FieldRef(
             format!("{}.{}", parent_entity, target_path).to_string(),
         ));
-        // left join
-        if subassemble.join == Some(AssembleJoinType::Left) {
+        // left join many-one
+        if subassemble.join == Some(AssembleJoinType::Left)
+            && constraint.relationship_type == RelationshipType::Many
+        {
             if let Some(filter) = subassemble.filter {
                 pipeline.push(Stage::Project(ProjectStage {
                     items: map! {
@@ -518,19 +521,21 @@ impl<'a> AssembleGenerator<'a> {
                         "_id".to_string() => ProjectItem::Exclusion,
                     },
                 }));
+                pipeline.push(Stage::Unwind(Unwind::Document(UnwindExpr {
+                    path: Box::new(Expression::Ref(Ref::FieldRef(subassemble.entity.clone()))),
+                    preserve_null_and_empty_arrays: Some(true),
+                    include_array_index: None,
+                })));
             }
-            pipeline.push(Stage::Unwind(Unwind::Document(UnwindExpr {
-                path: Box::new(Expression::Ref(Ref::FieldRef(subassemble.entity.clone()))),
-                preserve_null_and_empty_arrays: Some(true),
-                include_array_index: None,
-            })));
-        // inner join
+        // inner join or left one-to-one
         } else {
-            pipeline.push(Stage::Unwind(Unwind::Document(UnwindExpr {
-                path: Box::new(target_ref.clone()),
-                preserve_null_and_empty_arrays: None,
-                include_array_index: None,
-            })));
+            if constraint.relationship_type == RelationshipType::Many {
+                pipeline.push(Stage::Unwind(Unwind::Document(UnwindExpr {
+                    path: Box::new(target_ref.clone()),
+                    preserve_null_and_empty_arrays: None,
+                    include_array_index: None,
+                })));
+            }
             pipeline.push(Stage::Project(ProjectStage {
                 items: map! {
                     subassemble.entity.clone() => ProjectItem::Assignment(target_ref),

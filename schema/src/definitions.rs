@@ -114,7 +114,7 @@ impl Schema {
 #[derive(
     PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Copy, Default, Serialize, Deserialize,
 )]
-pub enum Relationship {
+pub enum RelationshipType {
     #[default]
     #[serde(rename = "one-one")]
     One,
@@ -180,7 +180,7 @@ pub struct StorageConstraint {
 pub struct Reference {
     pub entity: String,
     pub field: String,
-    pub relationship_type: Relationship,
+    pub relationship_type: RelationshipType,
     pub storage_constraints: Vec<StorageConstraint>,
 }
 
