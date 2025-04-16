@@ -20,7 +20,7 @@
                     "$expr": {"$eq": ["$type", "B"]}
                 }},
                 {"$match": {
-                    "$expr": {"$eq": ["$$l", "the answer"]}
+                    "$expr": {"$eq": ["$$l.the_universe.everything", "the answer"]}
                 }},
                 {"$project": {
                     "status": 1,
