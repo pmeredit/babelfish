@@ -44,6 +44,8 @@ struct Cli {
     erd_file: Option<String>,
     #[arg(short, long, help = "match move")]
     match_move: Option<String>,
+    #[arg(short, long, help = "new erd file")]
+    nerd_file: Option<String>,
 }
 
 fn main() {
@@ -80,6 +82,10 @@ fn run() -> Result<(), CliError> {
         let match_move = match_movement_rewrite::rewrite_match_move(match_move);
         let match_move_json = serde_json::to_string_pretty(&match_move)?;
         println!("{}", match_move_json);
+    } else if let Some(nerd_file) = &args.nerd_file {
+        let nerd = std::fs::read_to_string(nerd_file)?;
+        let nerd: babelfish::erd::Erd = serde_json::from_str(&nerd)?;
+        println!("{:?}", nerd);
     }
     Ok(())
 }

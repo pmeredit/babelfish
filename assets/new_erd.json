@@ -1,0 +1,119 @@
+{
+  "Customer": {
+    "db": "company",
+    "collection": "customer",
+    "primaryKey": "_id",
+    "description": "Stores customer information and their embedded addresses.",
+    "relationships": [
+      {
+        "foreignEntity": "Address",
+        "relationshipType": "many-to-one",
+        "description": "Links customers to their addresses.",
+        "constraint": {
+          "constraintType": "embedded",
+          "direction": "child",
+          "targetPath": "addresses",
+          "projection": ["street_address", "city", "state", "postal_code", "country"]
+        },
+        "consistency": "strong"
+      },
+      {
+        "foreignEntity": "Order",
+        "relationshipType": "many-to-one",
+        "description": "Links customers to their orders.",
+        "constraint": {
+          "constraintType": "foreign",
+          "direction": "child",
+          "foreignKey": "customer_email",
+          "localKey": "email",
+          "projection": ["order_id", "order_date", "total_amount"]
+        },
+        "consistency": "strong"
+      },
+      {
+        "foreignEntity": "Payment",
+        "relationshipType": "one-to-one",
+        "description": "Links customers to their payment information.",
+        "constraint": {
+          "constraintType": "embedded",
+          "direction": "child",
+          "targetPath": "payment",
+          "projection": ["payment_method", "billing_address"]
+        }
+      }
+    ],
+    "jsonSchema": {
+      "bsonType": "object",
+      "required": [
+        "_id",
+        "first_name",
+        "last_name",
+        "email",
+        "registration_date"
+      ],
+      "properties": {
+        "_id": { "bsonType": "objectId" },
+        "customer_id_sql": { "bsonType": "int", "description": "Original SQL customer_id" },
+        "first_name": { "bsonType": "string" },
+        "last_name": { "bsonType": "string" },
+        "email": { "bsonType": "string", "description": "Primary email, unique identifier from SQL." },
+        "phone_number": { "bsonType": "string", "description": "Optional phone number." },
+        "registration_date": { "bsonType": "date" },
+        "addresses": {
+          "bsonType": "array",
+          "description": "Array of customer's addresses, embedded.",
+          "items": {
+            "bsonType": "object",
+            "schemaDerivedFrom": "Address",
+            "description": "An embedded address structure."
+          }
+        }
+      },
+      "indexes": [
+        { "keys": { "email": 1 }, "options": { "unique": true } }
+      ]
+    }
+  },
+  "Address": {
+    "db": "company",
+    "collection": "customer",
+    "primaryKey": "customer_id_sql",    
+    "description": "Defines the canonical structure of a single address object. Can be embedded.",
+    "relationships": [
+      {
+        "foreignEntity": "Customer",
+        "relationshipType": "many-to-one",
+        "constraint": {
+          "constraintType": "embedded",
+          "direction": "child",
+          "targetPath": "addresses",
+          "projection": ["street_address", "city", "state", "postal_code", "country"]
+        },
+        "consistency": "strong"
+      }
+    ],
+    "jsonSchema": { 
+      "bsonType": "object",
+      "required": [
+        "street_address",
+        "city",
+        "state",
+        "postal_code",
+        "country",
+        "address_constraintType",
+        "is_default"
+      ],
+      "properties": {
+        "address_id_sql": { "bsonType": "int", "description": "Original SQL address_id" },
+        "customer_id_sql": { "bsonType": "int", "description": "Original SQL customer_id (FK from addresses table)"},
+        "street_address": { "bsonType": "string" },
+        "city": { "bsonType": "string" },
+        "state": { "bsonType": "string" },
+        "postal_code": { "bsonType": "string" },
+        "country": { "bsonType": "string" },
+        "address_constraintType": { "bsonType": "string", "description": "Type of address (e.g., Home, Work)" },
+        "is_default": { "bsonType": "bool" }
+      }
+    }
+  }
+ }

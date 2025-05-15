@@ -63,7 +63,7 @@ impl Entity {
     }
 }
 
-fn deserialize_json_schema<'de, D>(deserializer: D) -> Result<Schema, D::Error>
+pub fn deserialize_json_schema<'de, D>(deserializer: D) -> Result<Schema, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -74,7 +74,7 @@ where
     Schema::try_from(json_schema).map_err(serde::de::Error::custom)
 }
 
-fn serialize_json_schema<S>(schema: &Schema, serializer: S) -> Result<S::Ok, S::Error>
+pub fn serialize_json_schema<S>(schema: &Schema, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
 {
