@@ -742,11 +742,36 @@ mod stage_test {
     mod join {
         use crate::{
             definitions::{
-                Expression, Join, JoinType, LiteralValue, Pipeline, ProjectItem, ProjectStage, Ref,
-                Stage, UntaggedOperator, UntaggedOperatorName,
+                Expression, Join, JoinType, LiteralValue, NattyJoin, NattyJoinExpression, Pipeline,
+                ProjectItem, ProjectStage, Ref, Stage, UntaggedOperator, UntaggedOperatorName,
             },
             map,
         };
+
+        test_serde_stage!(
+            natty_join,
+            expected = Stage::NattyJoin(Box::new(NattyJoin::Inner(NattyJoinExpression {
+                args: vec![
+                    NattyJoin::Entity("a".to_string(),),
+                    NattyJoin::Entity("b".to_string()),
+                    NattyJoin::Left(NattyJoinExpression {
+                        args: vec![
+                            NattyJoin::Entity("c".to_string()),
+                            NattyJoin::Entity("d".to_string())
+                        ],
+                        condition: Some(Expression::UntaggedOperator(UntaggedOperator {
+                            op: UntaggedOperatorName::Gt,
+                            args: vec![
+                                Expression::Ref(Ref::FieldRef("c.bar".to_string())),
+                                Expression::Ref(Ref::FieldRef("d.bar".to_string()))
+                            ]
+                        }))
+                    })
+                ],
+                condition: None
+            }))),
+            input = r#"stage: {"$nattyJoin": {"$inner": {"args": ["a", "b", {"$left": {"args": ["c", "d"], "condition": {"$gt": ["$c.bar", "$d.bar"]}}}]}}}"#
+        );
 
         test_serde_stage!(
             inner_join,

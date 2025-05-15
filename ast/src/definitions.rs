@@ -59,6 +59,8 @@ pub enum Stage {
     Group(Group),
     #[serde(rename = "$join")]
     Join(Box<Join>),
+    #[serde(rename = "$nattyJoin")]
+    NattyJoin(Box<NattyJoin>),
     #[serde(rename = "$equiJoin")]
     EquiJoin(EquiJoin),
     #[serde(rename = "$unwind")]
@@ -485,6 +487,23 @@ pub struct Join {
     #[serde(rename = "let")]
     pub let_body: Option<LinkedHashMap<String, Expression>>,
     pub pipeline: Pipeline,
+    pub condition: Option<Expression>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum NattyJoin {
+    #[serde(rename = "$inner")]
+    Inner(NattyJoinExpression),
+    #[serde(rename = "$left")]
+    Left(NattyJoinExpression),
+    #[serde(untagged)]
+    Entity(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct NattyJoinExpression {
+    pub args: Vec<NattyJoin>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub condition: Option<Expression>,
 }
 
@@ -1795,6 +1814,7 @@ impl VecOrSingleExpr {
 impl Stage {
     pub fn name(&self) -> &str {
         match self {
+            Stage::NattyJoin(_) => "$nattyJoin",
             Stage::SubPipeline(_) => "$subPipeline",
             Stage::Collection(_) => "<collection>",
             Stage::Assemble(_) => "$assemble",
