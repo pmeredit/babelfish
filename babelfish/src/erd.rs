@@ -53,6 +53,8 @@ pub enum Consistency {
     Strong,
     #[serde(rename = "weak")]
     Weak,
+    #[serde(rename = "eventual")]
+    Eventual,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
