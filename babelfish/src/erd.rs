@@ -80,7 +80,13 @@ pub enum Consistency {
 pub struct Constraint {
     pub constraint_type: ConstraintType,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub db: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub collection: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub direction: Option<ConstraintDirection>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub local_key: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub foreign_key: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -94,7 +100,6 @@ pub struct Constraint {
 pub enum ConstraintType {
     Foreign,
     Embedded,
-    Root,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]

@@ -1,0 +1,10 @@
+[
+    {"$nattyJoin":
+        {"$inner": {
+            "args": ["Customer", "Order", "Address"],
+            "condition": {"$gt": ["$Customer.postal_code", 90210]}
+        }}
+    },
+    {"$limit": 10},
+    {"$skip": 0}
+]

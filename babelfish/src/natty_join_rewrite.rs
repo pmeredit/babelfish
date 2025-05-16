@@ -1,7 +1,8 @@
-use crate::erd::{Erd, Source};
+use crate::erd::{ConstraintType, Erd, ErdRelationship, Source};
 use ast::{
     definitions::{
-        visitor::Visitor, Expression, NattyJoin, NattyJoinExpression, Pipeline, ProjectItem,
+        visitor::Visitor, EqualityLookup, Expression, Lookup, LookupFrom, MatchExpr,
+        MatchExpression, MatchStage, NattyJoin, NattyJoinExpression, Pipeline, ProjectItem,
         ProjectStage, Ref, Stage, Unwind,
     },
     map,
@@ -148,7 +149,24 @@ impl NattyJoinGenerator {
                         .entities
                         .get_relationship(&current, &entity)
                         .expect(format!("Missing relationship {} => {}", current, entity).as_str());
+
+                    match relationship.constraint.constraint_type {
+                        ConstraintType::Embedded => {
+                            pipeline.push(Self::generate_for_embedded(relationship)?);
+                        }
+                        ConstraintType::Foreign => {
+                            pipeline.push(Self::generate_for_foreign(relationship)?);
+                        }
+                    }
                     current = entity;
+                }
+                if let Some(condition) = condition {
+                    pipeline.push(Stage::Match(MatchStage {
+                        expr: vec![MatchExpression::Expr(MatchExpr {
+                            expr: Box::new(condition),
+                        })],
+                        numbering: None,
+                    }));
                 }
             }
             _ => panic!("Not supporting $left yet, and if this is an Entity... this isn't a join"),
@@ -176,6 +194,60 @@ impl NattyJoinGenerator {
                         "_id".to_string() => ProjectItem::Exclusion,
                     },
                 }),
+            ],
+        }))
+    }
+
+    fn generate_for_embedded(relationship: &ErdRelationship) -> Result<Stage> {
+        Ok(Stage::SubPipeline(Pipeline {
+            pipeline: vec![
+                Stage::Unwind(Unwind::FieldPath(Expression::Ref(Ref::FieldRef(
+                    relationship
+                        .constraint
+                        .target_path
+                        .as_ref()
+                        .unwrap()
+                        .to_string(),
+                )))),
+                Stage::Project(ProjectStage {
+                    items: map! {
+                        relationship.foreign_entity.to_string() => ProjectItem::Assignment(Expression::Ref(Ref::FieldRef(relationship.constraint.target_path.as_ref().unwrap().to_string()))),
+                        "_id".to_string() => ProjectItem::Exclusion,
+                    },
+                }),
+            ],
+        }))
+    }
+
+    fn generate_for_foreign(relationship: &ErdRelationship) -> Result<Stage> {
+        Ok(Stage::SubPipeline(Pipeline {
+            pipeline: vec![
+                Stage::Lookup(Lookup::Equality(EqualityLookup {
+                    from: LookupFrom::Collection(
+                        relationship
+                            .constraint
+                            .collection
+                            .as_ref()
+                            .expect("Collection not found in foreign constraint")
+                            .to_string(),
+                    ),
+                    local_field: relationship
+                        .constraint
+                        .local_key
+                        .as_ref()
+                        .expect("Missing localKey in foreign constraint")
+                        .to_string(),
+                    foreign_field: relationship
+                        .constraint
+                        .foreign_key
+                        .as_ref()
+                        .expect("Missing foreign key in foreign constraint")
+                        .to_string(),
+                    as_var: relationship.foreign_entity.to_string(),
+                })),
+                Stage::Unwind(Unwind::FieldPath(Expression::Ref(Ref::FieldRef(
+                    relationship.foreign_entity.to_string(),
+                )))),
             ],
         }))
     }

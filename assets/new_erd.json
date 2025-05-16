@@ -23,6 +23,8 @@
         "description": "Original source relationship indicating an address might be linked to a customer. In the MongoDB model, addresses are typically embedded within customers.",
         "constraint": {
           "constraintType": "foreign",
+          "db": "ecommerce_db",
+          "collection": "customers",
           "direction": "parent",
           "localKey": "customer_id",
           "foreignKey": "customer_id",
@@ -156,6 +158,8 @@
         "description": "Links customers to their orders. Orders reference customers.",
         "constraint": {
           "constraintType": "foreign",
+          "db": "ecommerce_db",
+          "collection": "orders",
           "direction": "parent",
           "localKey": "_id",
           "foreignKey": "customer_ref_id",
@@ -228,6 +232,8 @@
         "description": "Links categories to their products. Products reference categories.",
         "constraint": {
           "constraintType": "foreign",
+          "db": "ecommerce_db",
+          "collection": "products",
           "direction": "parent",
           "localKey": "_id",
           "foreignKey": "category_ref_id",
@@ -274,6 +280,8 @@
         "description": "Products belong to a category. This product references a category.",
         "constraint": {
           "constraintType": "foreign",
+          "db": "ecommerce_db",
+          "collection": "categories",
           "direction": "child",
           "localKey": "category_ref_id",
           "foreignKey": "_id",
@@ -334,6 +342,8 @@
         "description": "Order belongs to a customer. This order references a customer.",
         "constraint": {
           "constraintType": "foreign",
+          "db": "ecommerce_db",
+          "collection": "customers",
           "direction": "child",
           "localKey": "customer_ref_id",
           "foreignKey": "_id",
