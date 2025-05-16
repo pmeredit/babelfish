@@ -1,8 +1,8 @@
 [
     {"$nattyJoin":
         {"$inner": {
-            "args": ["Customer", "Order", "Address"],
-            "condition": {"$gt": ["$Customer.postal_code", 90210]}
+            "args": ["Customer", "Order", "OrderItem"],
+            "condition": {"$gt": ["$Order.total_amount", 500]}
         }}
     },
     {"$limit": 10},

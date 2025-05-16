@@ -206,6 +206,13 @@ impl Stage {
             Stage::Lookup(Lookup::Equality(lookup)) => set![lookup.as_var.clone()],
             Stage::Lookup(Lookup::ConciseSubquery(lookup)) => set![lookup.as_var.clone()],
             Stage::Lookup(Lookup::Subquery(lookup)) => set![lookup.as_var.clone()],
+            Stage::Unwind(Unwind::FieldPath(expr)) => {
+                if let Expression::Ref(Ref::FieldRef(ref field)) = *expr {
+                    set![field.clone()]
+                } else {
+                    unreachable!()
+                }
+            }
             Stage::Unwind(Unwind::Document(expr)) => {
                 let mut ret: HashSet<_> =
                     if let Expression::Ref(Ref::FieldRef(ref field)) = *expr.path {
