@@ -8,7 +8,8 @@ pub enum CliError {
     Io(std::io::Error),
     Bson(bson::de::Error),
     Json(serde_json::Error),
-    Babelfish(babelfish::assemble_rewrite::Error),
+    Assemble(babelfish::assemble_rewrite::Error),
+    NattyJoin(babelfish::natty_join_rewrite::Error),
 }
 
 impl From<std::io::Error> for CliError {
@@ -31,7 +32,13 @@ impl From<serde_json::Error> for CliError {
 
 impl From<babelfish::assemble_rewrite::Error> for CliError {
     fn from(e: babelfish::assemble_rewrite::Error) -> Self {
-        CliError::Babelfish(e)
+        CliError::Assemble(e)
+    }
+}
+
+impl From<babelfish::natty_join_rewrite::Error> for CliError {
+    fn from(e: babelfish::natty_join_rewrite::Error) -> Self {
+        CliError::NattyJoin(e)
     }
 }
 
@@ -54,7 +61,8 @@ fn main() {
             CliError::Io(e) => eprintln!("IO error: {}", e),
             CliError::Bson(e) => eprintln!("Bson error: {}", e),
             CliError::Json(e) => eprintln!("Json error: {}", e),
-            CliError::Babelfish(e) => println!("Babelfish error: {}", e),
+            CliError::Assemble(e) => println!("Assemble error: {}", e),
+            CliError::NattyJoin(e) => println!("NattyJoin error: {}", e),
         }
     }
 }
@@ -70,9 +78,7 @@ fn run() -> Result<(), CliError> {
         let pipeline = std::fs::read_to_string(pipeline_file)?;
         let pipeline: Pipeline = serde_json::from_str(&pipeline)?;
         let pipeline = assemble_rewrite::rewrite_pipeline(pipeline)?;
-        //let pipeline = match_movement_rewrite::flatten_pipeline(pipeline);
-        // let pipeline_json = serde_json::to_string_pretty(&pipeline)?;
-        //println!("before opt: {}", pipeline_json);
+        let pipeline = natty_join_rewrite::rewrite_pipeline(pipeline)?;
         let pipeline = match_movement_rewrite::rewrite_match_move(pipeline);
         let pipeline_json = serde_json::to_string_pretty(&pipeline)?;
         println!("{}", pipeline_json);

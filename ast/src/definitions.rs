@@ -26,6 +26,30 @@ pub struct Pipeline {
     pub pipeline: Vec<Stage>,
 }
 
+impl Pipeline {
+    pub fn with_capacity(capacity: usize) -> Pipeline {
+        Pipeline {
+            pipeline: Vec::with_capacity(capacity),
+        }
+    }
+
+    pub fn into_inner(self) -> Vec<Stage> {
+        self.pipeline
+    }
+
+    pub fn push(&mut self, stage: Stage) {
+        self.pipeline.push(stage);
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.pipeline.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.pipeline.len()
+    }
+}
+
 /// Stage represents an aggregation pipeline stage.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub enum Stage {

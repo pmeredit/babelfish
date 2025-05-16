@@ -5,40 +5,54 @@ use std::collections::HashMap;
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Erd(HashMap<String, ErdItem>);
 
+impl Erd {
+    pub fn get_relationship(&self, entity: &str, foreign_entity: &str) -> Option<&ErdRelationship> {
+        self.0.get(entity).and_then(|item| {
+            item.relationships
+                .iter()
+                .find(|r| r.foreign_entity == foreign_entity)
+        })
+    }
+
+    pub fn get_source(&self, entity: &str) -> Option<&Source> {
+        self.0.get(entity).map(|item| &item.source)
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ErdItem {
-    source: Source,
-    primary_key: String,
+    pub source: Source,
+    pub primary_key: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    description: Option<String>,
-    relationships: Vec<ErdRelationship>,
+    pub description: Option<String>,
+    pub relationships: Vec<ErdRelationship>,
     #[serde(serialize_with = "schema::serialize_json_schema")]
     #[serde(deserialize_with = "schema::deserialize_json_schema")]
-    json_schema: Schema,
+    pub json_schema: Schema,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Source {
-    db: String,
-    collection: String,
+    pub db: String,
+    pub collection: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    target_path: Option<String>,
+    pub target_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    projection: Option<Vec<String>>,
+    pub projection: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ErdRelationship {
-    foreign_entity: String,
-    relationship_type: RelationshipType,
+    pub foreign_entity: String,
+    pub relationship_type: RelationshipType,
     #[serde(skip_serializing_if = "Option::is_none")]
-    description: Option<String>,
+    pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    consistency: Option<Consistency>,
-    constraint: Constraint,
+    pub consistency: Option<Consistency>,
+    pub constraint: Constraint,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -64,15 +78,15 @@ pub enum Consistency {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Constraint {
-    constraint_type: ConstraintType,
+    pub constraint_type: ConstraintType,
     #[serde(skip_serializing_if = "Option::is_none")]
-    direction: Option<ConstraintDirection>,
+    pub direction: Option<ConstraintDirection>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    foreign_key: Option<String>,
+    pub foreign_key: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    target_path: Option<String>,
+    pub target_path: Option<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    projection: Vec<String>,
+    pub projection: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
