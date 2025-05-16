@@ -5,17 +5,10 @@ use std::collections::HashMap;
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Erd(HashMap<String, ErdItem>);
 
-impl Erd {
-    fn new() -> Self {
-        Erd(HashMap::new())
-    }
-}
-
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ErdItem {
-    db: String,
-    collection: String,
+    source: Source,
     primary_key: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<String>,
@@ -23,6 +16,17 @@ pub struct ErdItem {
     #[serde(serialize_with = "schema::serialize_json_schema")]
     #[serde(deserialize_with = "schema::deserialize_json_schema")]
     json_schema: Schema,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct Source {
+    db: String,
+    collection: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    target_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    projection: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -61,7 +65,8 @@ pub enum Consistency {
 #[serde(rename_all = "camelCase")]
 pub struct Constraint {
     constraint_type: ConstraintType,
-    direction: ConstraintDirection,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    direction: Option<ConstraintDirection>,
     #[serde(skip_serializing_if = "Option::is_none")]
     foreign_key: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -75,6 +80,7 @@ pub struct Constraint {
 pub enum ConstraintType {
     Foreign,
     Embedded,
+    Root,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]

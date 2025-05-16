@@ -1,7 +1,19 @@
 {
   "Address": {
-    "db": "ecommerce_db",
-    "collection": "addresses",
+    "source": {
+      "db": "ecommerce_db",
+      "collection": "customers",
+      "targetPath": "addresses",
+      "projection": [
+         "street_address",
+         "city",
+         "state",
+         "postal_code",
+         "country",
+         "address_constraintType",
+         "is_default"
+      ]
+    },
     "primaryKey": "_id",
     "description": "Defines the canonical structure of a single address object. This schema is primarily used for embedding within Customer and Order collections. This 'collection' serves as a schema definition point.",
     "relationships": [
@@ -56,10 +68,20 @@
     }
   },
   "OrderItem": {
-    "db": "ecommerce_db",
-    "collection": "order_items",
     "primaryKey": "_id",
     "description": "Defines the canonical structure of a single order item. This schema is primarily used for embedding within the Order collection. This 'collection' serves as a schema definition point.",
+    "source": {
+      "db": "ecommerce_db",
+      "collection": "orders",
+      "targetPath": "order_items",
+      "projection": [
+        "product_ref_id",
+        "product_name_snapshot",
+        "quantity",
+        "price_at_purchase",
+        "original_product_id"
+      ]
+    },
     "relationships": [],
     "jsonSchema": {
       "bsonType": "object",
@@ -100,9 +122,12 @@
     }
   },
   "Customer": {
-    "db": "ecommerce_db",
-    "collection": "customers",
     "primaryKey": "_id",
+    "source": {
+        "db": "ecommerce_db",
+        "collection": "customers"
+    },
+    "collection": "customers",
     "description": "Stores customer information and their embedded addresses.",
     "relationships": [
       {
@@ -190,8 +215,10 @@
     }
   },
   "Category": {
-    "db": "ecommerce_db",
-    "collection": "categories",
+    "source": {
+      "db": "ecommerce_db",
+      "collection": "categories"
+    },
     "primaryKey": "_id",
     "description": "Stores product categories.",
     "relationships": [
@@ -234,8 +261,10 @@
     }
   },
   "Product": {
-    "db": "ecommerce_db",
-    "collection": "products",
+    "source": {
+      "db": "ecommerce_db",
+      "collection": "products"
+    },
     "primaryKey": "_id",
     "description": "Stores product information.",
     "relationships": [
@@ -292,8 +321,10 @@
     }
   },
   "Order": {
-    "db": "ecommerce_db",
-    "collection": "orders",
+    "source": {
+      "db": "ecommerce_db",
+      "collection": "orders"
+    },
     "primaryKey": "_id",
     "description": "Stores order information, embedding order items, shipping and billing addresses (as snapshots). References customer.",
     "relationships": [
