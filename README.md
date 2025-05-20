@@ -42,6 +42,10 @@ The core of the system is the schema definition (new_schema.json), which contain
 
 The schema now uses MongoDB's JSON Schema format, providing better integration with MongoDB's validation capabilities.
 
+# Note recently updated to also support a new concise form and new Schema format specified in the
+assets/natty_join_test.json and assets/new_erd respectively. The old $assemble stage and ERD
+described in this README are also still supported.
+
 ### Storage Constraint Types
 
 The system supports three main types of storage constraints:
