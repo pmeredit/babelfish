@@ -9,6 +9,7 @@ pub enum CliError {
     Bson(bson::de::Error),
     Json(serde_json::Error),
     Assemble(babelfish::assemble_rewrite::Error),
+    AugmentedProject(babelfish::augmented_project_rewrite::Error),
     Join(babelfish::join_rewrite::Error),
 }
 
@@ -42,6 +43,12 @@ impl From<babelfish::join_rewrite::Error> for CliError {
     }
 }
 
+impl From<babelfish::augmented_project_rewrite::Error> for CliError {
+    fn from(e: babelfish::augmented_project_rewrite::Error) -> Self {
+        CliError::AugmentedProject(e)
+    }
+}
+
 #[derive(Parser, Debug)]
 #[command(version, about, long_about=None)]
 struct Cli {
@@ -63,6 +70,7 @@ fn main() {
             CliError::Json(e) => eprintln!("Json error: {}", e),
             CliError::Assemble(e) => println!("Assemble error: {}", e),
             CliError::Join(e) => println!("Join error: {}", e),
+            CliError::AugmentedProject(e) => println!("AugmentedProject error: {}", e),
         }
     }
 }
@@ -77,6 +85,7 @@ fn run() -> Result<(), CliError> {
     } else if let Some(pipeline_file) = &args.pipeline_file {
         let pipeline = std::fs::read_to_string(pipeline_file)?;
         let pipeline: Pipeline = serde_json::from_str(&pipeline)?;
+        let pipeline = augmented_project_rewrite::rewrite_pipeline(pipeline)?;
         let pipeline = assemble_rewrite::rewrite_pipeline(pipeline)?;
         let pipeline = join_rewrite::rewrite_pipeline(pipeline)?;
         let pipeline = match_movement_rewrite::rewrite_match_move(pipeline);
