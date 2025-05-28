@@ -81,10 +81,10 @@ pub enum Stage {
     SortByCount(Box<Expression>),
     #[serde(rename = "$group")]
     Group(Group),
+    #[serde(rename = "$fakeJoin")]
+    FakeJoin(Box<FakeJoin>),
     #[serde(rename = "$join")]
     Join(Box<Join>),
-    #[serde(rename = "$nattyJoin")]
-    NattyJoin(Box<NattyJoin>),
     #[serde(rename = "$equiJoin")]
     EquiJoin(EquiJoin),
     #[serde(rename = "$unwind")]
@@ -503,7 +503,7 @@ pub enum GroupAccumulatorName {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Join {
+pub struct FakeJoin {
     pub database: Option<String>,
     pub collection: Option<String>,
     #[serde(rename = "joinType")]
@@ -515,18 +515,18 @@ pub struct Join {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum NattyJoin {
+pub enum Join {
     #[serde(rename = "$inner")]
-    Inner(NattyJoinExpression),
+    Inner(JoinExpression),
     #[serde(rename = "$left")]
-    Left(NattyJoinExpression),
+    Left(JoinExpression),
     #[serde(untagged)]
     Entity(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct NattyJoinExpression {
-    pub args: Vec<NattyJoin>,
+pub struct JoinExpression {
+    pub args: Vec<Join>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub condition: Option<Expression>,
 }
@@ -1838,7 +1838,7 @@ impl VecOrSingleExpr {
 impl Stage {
     pub fn name(&self) -> &str {
         match self {
-            Stage::NattyJoin(_) => "$nattyJoin",
+            Stage::Join(_) => "$join",
             Stage::SubPipeline(_) => "$subPipeline",
             Stage::Collection(_) => "<collection>",
             Stage::Assemble(_) => "$assemble",
@@ -1851,7 +1851,7 @@ impl Stage {
             Stage::Sort(_) => "$sort",
             Stage::SortByCount(_) => "$sortByCount",
             Stage::Group(_) => "$group",
-            Stage::Join(_) => "$join",
+            Stage::FakeJoin(_) => "$fakeJoin",
             Stage::EquiJoin(_) => "$equiJoin",
             Stage::Unwind(_) => "$unwind",
             Stage::Lookup(_) => "$lookup",

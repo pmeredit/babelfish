@@ -9,7 +9,7 @@ pub enum CliError {
     Bson(bson::de::Error),
     Json(serde_json::Error),
     Assemble(babelfish::assemble_rewrite::Error),
-    NattyJoin(babelfish::natty_join_rewrite::Error),
+    Join(babelfish::join_rewrite::Error),
 }
 
 impl From<std::io::Error> for CliError {
@@ -36,9 +36,9 @@ impl From<babelfish::assemble_rewrite::Error> for CliError {
     }
 }
 
-impl From<babelfish::natty_join_rewrite::Error> for CliError {
-    fn from(e: babelfish::natty_join_rewrite::Error) -> Self {
-        CliError::NattyJoin(e)
+impl From<babelfish::join_rewrite::Error> for CliError {
+    fn from(e: babelfish::join_rewrite::Error) -> Self {
+        CliError::Join(e)
     }
 }
 
@@ -62,7 +62,7 @@ fn main() {
             CliError::Bson(e) => eprintln!("Bson error: {}", e),
             CliError::Json(e) => eprintln!("Json error: {}", e),
             CliError::Assemble(e) => println!("Assemble error: {}", e),
-            CliError::NattyJoin(e) => println!("NattyJoin error: {}", e),
+            CliError::Join(e) => println!("Join error: {}", e),
         }
     }
 }
@@ -78,7 +78,7 @@ fn run() -> Result<(), CliError> {
         let pipeline = std::fs::read_to_string(pipeline_file)?;
         let pipeline: Pipeline = serde_json::from_str(&pipeline)?;
         let pipeline = assemble_rewrite::rewrite_pipeline(pipeline)?;
-        let pipeline = natty_join_rewrite::rewrite_pipeline(pipeline)?;
+        let pipeline = join_rewrite::rewrite_pipeline(pipeline)?;
         let pipeline = match_movement_rewrite::rewrite_match_move(pipeline);
         let pipeline_json = serde_json::to_string_pretty(&pipeline)?;
         println!("{}", pipeline_json);

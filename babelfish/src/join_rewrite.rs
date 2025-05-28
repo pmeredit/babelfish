@@ -1,9 +1,9 @@
 use crate::erd::{ConstraintType, Erd, ErdRelationship, Source};
 use ast::{
     definitions::{
-        visitor::Visitor, EqualityLookup, Expression, Lookup, LookupFrom, MatchExpr,
-        MatchExpression, MatchStage, NattyJoin, NattyJoinExpression, Pipeline, ProjectItem,
-        ProjectStage, Ref, Stage, Unwind,
+        visitor::Visitor, EqualityLookup, Expression, Join, JoinExpression, Lookup, LookupFrom,
+        MatchExpr, MatchExpression, MatchStage, Pipeline, ProjectItem, ProjectStage, Ref, Stage,
+        Unwind,
     },
     map,
 };
@@ -45,12 +45,12 @@ pub enum Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-pub struct NattyJoinRewrite {
+pub struct JoinRewrite {
     error: Option<Error>,
 }
 
 pub fn rewrite_pipeline(pipeline: Pipeline) -> Result<Pipeline> {
-    let mut visitor = NattyJoinRewrite { error: None };
+    let mut visitor = JoinRewrite { error: None };
     let pipeline = visitor.visit_pipeline(pipeline);
     if let Some(e) = visitor.error {
         Err(e)
@@ -59,14 +59,8 @@ pub fn rewrite_pipeline(pipeline: Pipeline) -> Result<Pipeline> {
     }
 }
 
-macro_rules! print_json {
-    ($v:expr) => {
-        serde_json::to_string_pretty($v).unwrap()
-    };
-}
-
-impl Visitor for NattyJoinRewrite {
-    // visit_stage is here to handle NattyJoin stages and replace them with SubPipelines
+impl Visitor for JoinRewrite {
+    // visit_stage is here to handle Join stages and replace them with SubPipelines
     fn visit_stage(&mut self, stage: Stage) -> Stage {
         if self.error.is_some() {
             return Stage::SubPipeline(Pipeline {
@@ -87,13 +81,13 @@ impl Visitor for NattyJoinRewrite {
             };
         }
         match stage {
-            Stage::NattyJoin(j) => {
+            Stage::Join(j) => {
                 let erd_json = handle_error!(std::fs::read_to_string("assets/new_erd.json")
                     .map_err(|_| Error::CouldNotFindErd("assets/new_erd.json".to_string())));
                 let erd: Erd =
                     handle_error!(serde_json::from_str(&erd_json).map_err(Error::CouldNotParseErd));
-                let mut generator = NattyJoinGenerator { entities: erd };
-                let sub_pipeline = handle_error!(generator.generate_natty_join(*j));
+                let mut generator = JoinGenerator { entities: erd };
+                let sub_pipeline = handle_error!(generator.generate_join(*j));
                 Stage::SubPipeline(sub_pipeline)
             }
             _ => stage,
@@ -101,7 +95,7 @@ impl Visitor for NattyJoinRewrite {
     }
 
     // visit_pipeline is here to flatten out SubPipelines introduced as replacements
-    // for NattyJoin stages
+    // for Join stages
     fn visit_pipeline(&mut self, pipeline: Pipeline) -> Pipeline {
         Pipeline {
             pipeline: pipeline
@@ -116,23 +110,23 @@ impl Visitor for NattyJoinRewrite {
     }
 }
 
-struct NattyJoinGenerator {
+struct JoinGenerator {
     entities: Erd,
 }
 
-impl NattyJoinGenerator {
-    fn generate_natty_join(&mut self, natty_join: NattyJoin) -> Result<Pipeline> {
+impl JoinGenerator {
+    fn generate_join(&mut self, join: Join) -> Result<Pipeline> {
         let mut pipeline = Pipeline {
             pipeline: Vec::new(),
         };
 
         // assume only inner and only one level
-        match natty_join {
-            NattyJoin::Inner(NattyJoinExpression {
+        match join {
+            Join::Inner(JoinExpression {
                 mut args,
-                mut condition,
+                condition,
             }) => {
-                let NattyJoin::Entity(mut current) = args.remove(0) else {
+                let Join::Entity(mut current) = args.remove(0) else {
                     panic!("Only supporting entities")
                 };
                 let source = self
@@ -141,7 +135,7 @@ impl NattyJoinGenerator {
                     .expect(format!("Missing source for entity {}", current).as_str());
                 pipeline.push(Self::generate_for_source(source, current.clone())?);
                 for arg in args {
-                    let NattyJoin::Entity(entity) = arg else {
+                    let Join::Entity(entity) = arg else {
                         panic!("Only supporting entities")
                     };
 
