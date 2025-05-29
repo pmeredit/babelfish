@@ -157,7 +157,7 @@
         "relationshipType": "many-to-one",
         "description": "Links customers to their orders. Orders reference customers.",
         "constraint": {
-          "constraintType": "embedded",
+          "constraintType": "foreign",
           "targetPath": "orders",
           "db": "ecommerce_db",
           "collection": "orders",

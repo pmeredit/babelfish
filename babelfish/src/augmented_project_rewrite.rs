@@ -44,6 +44,9 @@ impl Visitor for AugmentedProjectRewrite {
                             }
                             *item = ProjectItem::Inclusion;
                             Some((split[0].to_string(), ()))
+                        } else if v == "E*" {
+                            *item = ProjectItem::Inclusion;
+                            Some((name.to_string(), ()))
                         } else {
                             None
                         }

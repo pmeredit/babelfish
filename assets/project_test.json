@@ -3,8 +3,9 @@
         "Customer.last_name": "$$E",
         "Order._id": "$$E",
         "Order.total_amount": "$$E",
-        "OrderItem.product_id": "$$E"
+        "OrderItem": "$$E*"
     }},
+    {"$match": {"$expr": {"$gte": ["$Order.total_amount", 40]}}},
     {"$sort": {"Order.total_amount": -1}},
     {"$limit": 10},
     {"$skip": 0}
