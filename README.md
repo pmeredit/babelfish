@@ -1,15 +1,15 @@
 # Babelfish
 
-A Rust-based tool for generating and assembling MongoDB documents based on entity relationships and storage constraints, with intelligent MongoDB aggregation pipeline generation.
+A Rust-based tool for generating MongoDB aggregation pipelines that perform intelligent joins across entities based on defined relationships and storage constraints.
 
 ## Overview
 
-The babelfish project introduces the $assemble pipeline stage to bridge the gap between normalized entity-relationship data models and MongoDB's document-oriented storage. It provides a declarative way to:
+The babelfish project introduces the $join pipeline stage to bridge the gap between normalized entity-relationship data models and MongoDB's document-oriented storage. It provides a declarative way to:
 
-1. Define entity relationships and storage constraints in a schema
+1. Define entity relationships and storage constraints in an ERD (Entity Relationship Diagram)
 2. Generate physical MongoDB documents based on those constraints
-3. Assemble logical views of data by joining entities as needed
-4. Generate optimized MongoDB aggregation pipelines to query the data
+3. Join logical views of data across entities using high-level syntax
+4. Generate optimized MongoDB aggregation pipelines automatically
 
 The tool automatically analyzes document structures and relationships to determine the most efficient way to retrieve data based on your queries.
 
@@ -23,8 +23,8 @@ One of the key architectural features of the MongoDB Document Assembler is how i
 
 This abstraction provides several benefits:
 
-1. **Decoupling**: Assembly queries can be written against the logical schema without knowledge of physical storage
-2. **Flexibility**: The physical storage structure can be changed by modifying storage constraints without impacting assembly queries
+1. **Decoupling**: Join queries can be written against the logical schema without knowledge of physical storage
+2. **Flexibility**: The physical storage structure can be changed by modifying storage constraints without impacting join queries
 3. **Optimization**: The system automatically determines optimal collections to query based on storage constraints
 4. **Evolution**: As your data model evolves, you can modify storage constraints to optimize for new access patterns while maintaining backward compatibility
 
@@ -42,9 +42,8 @@ The core of the system is the schema definition (new_schema.json), which contain
 
 The schema now uses MongoDB's JSON Schema format, providing better integration with MongoDB's validation capabilities.
 
-# Note recently updated to also support a new concise form and new Schema format specified in the
-assets/natty_join_test.json and assets/new_erd respectively. The old $assemble stage and ERD
-described in this README are also still supported.
+# Note: The system now uses the $join operator with the ERD format specified in assets/new_erd.json.
+The $join operator provides a more intuitive and powerful way to express multi-entity queries.
 
 ### Storage Constraint Types
 
@@ -105,24 +104,26 @@ Example configuration:
 }
 ```
 
-### Assembly Configuration
+### Join Configuration
 
-The assembly configuration is used by the `$assemble` operator within a MongoDB pipeline, defined as follows:
+The join configuration uses the `$join` operator within a MongoDB pipeline, defined as follows:
 
 ```json
 {
-  "$assemble": {
-    "erd": "./assets/schema.json",
-    "entity": "Customer",
-    "project": ["customerAddress", "customerName"],
-    "subassemble": [...]
+  "$join": {
+    "$inner": {
+      "args": ["Customer", "Order", "OrderItem"],
+      "condition": {"$gt": ["$Order.total_amount", 500]}
+    }
   }
 }
 ```
 
-Key changes in the assembly format:
-- Uses `$assemble` within a standard MongoDB pipeline
-- Filters use MongoDB's `$expr` format for more consistent expression handling
+Key features of the join format:
+- Uses `$join` within a standard MongoDB pipeline
+- Supports inner and left join types with `$inner` and `$left`
+- Traverses entity relationships defined in the ERD
+- Filters use MongoDB's expression syntax
 - Can be combined with other MongoDB pipeline stages like `$limit` and `$skip`
 
 ## Installation
@@ -132,19 +133,15 @@ Key changes in the assembly format:
 
 ### Running the Tool
 
-The tool parses the specified $assemble config and generates the appropriate pipeline based on the specified schema or validates the specified schema file.
+The tool parses the specified $join config and generates the appropriate pipeline based on the ERD or validates the specified ERD file.
 
-// to run $assemble pipeline generation and optimization
+// to run $join pipeline generation and optimization
 
-cargo run --bin babelfish-cli -- -p assets/simple_test.json
-
-cargo run --bin babelfish-cli -- -p assets/simple_test1.json
-
-^^ show embedded vs reference
+cargo run --bin babelfish-cli -- -p assets/join_test.json
 
 // to parse an ERD
 
-cargo run --bin babelfish-cli -- -e assets/simple_schema.json
+cargo run --bin babelfish-cli -- -e assets/new_erd.json
 
 ## Schema and Assembly Examples
 
@@ -206,26 +203,16 @@ cargo run --bin babelfish-cli -- -e assets/simple_schema.json
 }
 ```
 
-### Assembly Example
+### Join Example
 
 ```json
 [
   {
-    "$assemble": {
-      "erd": "./assets/schema.json",
-      "entity": "Customer",
-      "project": ["customerAddress", "customerName"],
-      "subassemble": [{
-        "entity": "Account",
-        "join": "inner",
-        "project": ["accountName"],
-        "subassemble": [{
-          "entity": "Order",
-          "join": "inner",
-          "project": ["amount"],
-          "filter": { "$gte": ["$Order.amount", 100] }
-        }]
-      }]
+    "$join": {
+      "$inner": {
+        "args": ["Customer", "Order", "OrderItem"],
+        "condition": {"$gt": ["$Order.total_amount", 500]}
+      }
     }
   },
   { "$limit": 10 },
@@ -233,53 +220,156 @@ cargo run --bin babelfish-cli -- -e assets/simple_schema.json
 ]
 ```
 
+This example performs an inner join across three related entities (Customer → Order → OrderItem) with a condition filtering orders above $500.
+
 ## Advanced Features
 
-### Projection Control
+### Simplified Inner Joins with $project and $filter
 
-Each subassembly in the assembly configuration can include a `project` property to control which fields are included:
+For simple inner join queries, you can use `$project` with `$$E` annotations instead of explicit `$join` operations. This provides a more concise syntax when you only need inner joins:
+
+#### Using $$E Annotations
 
 ```json
+[
+    {"$project": {
+        "Customer.last_name": "$$E",      // Project specific field from Customer entity
+        "Order._id": "$$E",               // Project specific field from Order entity  
+        "Order.total_amount": "$$E",      // Project another field from Order entity
+        "OrderItem": "$$E*"               // Project all fields from OrderItem entity
+    }},
+    {"$match": {"$expr": {"$gte": ["$Order.total_amount", 40]}}},
+    {"$sort": {"Order.total_amount": -1}},
+    {"$limit": 10}
+]
+```
+
+#### $$E Annotation Types
+
+- **`$$E`**: Projects a specific field from an entity (e.g., `"Customer.name": "$$E"`)
+- **`$$E*`**: Projects all fields from an entity (e.g., `"Customer": "$$E*"`)
+
+The system automatically detects `$$E` annotations and generates the necessary inner join operations based on entity relationships defined in the ERD. This approach is ideal when:
+- You only need inner joins (no left joins)
+- The join conditions are based on standard entity relationships
+- You want concise, declarative syntax
+
+### Join Types
+
+The `$join` operator supports multiple join types for more complex scenarios:
+
+#### Inner Join
+```json
 {
-  "entity": "Order",
-  "join": "inner",
-  "filter": { "$gte": ["$Order.amount", 100] },
-  "project": ["orderId", "amount"],  // Only include these fields
-  "subassemble": [...]
+  "$join": {
+    "$inner": {
+      "args": ["Customer", "Order"],
+      "condition": {"$gte": ["$Order.amount", 100]}
+    }
+  }
 }
 ```
 
-The behavior of the `project` property:
-- If omitted (null): Include all fields from the entity
-- If empty array ([]): Include no fields (only _id)
-- If specified with field names: Include only those specific fields
+#### Left Join
+```json
+{
+  "$join": {
+    "$left": {
+      "args": ["Customer", "Order"],
+      "condition": {"$gte": ["$Order.amount", 100]}
+    }
+  }
+}
+```
 
-### Using MongoDB Expression Operators
+#### Simple Entity Reference
+```json
+{
+  "$join": "Customer"
+}
+```
 
-The new assembly format supports MongoDB's expression operators in filters:
+### ERD-Based Relationship Definition
+
+Relationships between entities are defined in the ERD file (`assets/new_erd.json`):
 
 ```json
-"filter": { 
+{
+  "Customer": {
+    "relationships": [
+      {
+        "foreignEntity": "Order",
+        "relationshipType": "one-to-many",
+        "constraint": {
+          "constraintType": "foreign",
+          "db": "ecommerce_db",
+          "collection": "orders",
+          "localKey": "_id",
+          "foreignKey": "customer_ref_id"
+        }
+      }
+    ]
+  }
+}
+```
+
+### Constraint Types
+
+The system supports different constraint types for joining data:
+
+#### Foreign Key Constraints
+Use MongoDB `$lookup` operations to join across collections:
+```json
+{
+  "constraintType": "foreign",
+  "db": "ecommerce_db",
+  "collection": "orders",
+  "localKey": "_id",
+  "foreignKey": "customer_ref_id"
+}
+```
+
+#### Embedded Constraints
+Use `$unwind` operations to flatten embedded arrays/objects:
+```json
+{
+  "constraintType": "embedded",
+  "targetPath": "contact"
+}
+```
+
+### Complex Filtering Conditions
+
+The join conditions support MongoDB's expression operators:
+
+```json
+"condition": {
   "$and": [
-    { "$gte": ["$Order.amount", 100] },
-    { "$lte": ["$Order.amount", 1000] }
+    {"$gte": ["$Order.amount", 100]},
+    {"$lte": ["$Order.amount", 1000]},
+    {"$eq": ["$Order.status", "completed"]}
   ]
 }
 ```
 
-This allows for more complex filtering conditions and better compatibility with MongoDB's query capabilities.
-
 ### Integration with MongoDB Pipelines
 
-The `$assemble` operator can be used as part of a larger MongoDB aggregation pipeline:
+The `$join` operator can be used as part of a larger MongoDB aggregation pipeline:
 
 ```json
 [
-  { "$match": { "customerStatus": "active" } },
-  { "$assemble": { ... } },
-  { "$sort": { "Customer.customerName": 1 } },
-  { "$limit": 10 }
+  {"$match": {"customerStatus": "active"}},
+  {
+    "$join": {
+      "$inner": {
+        "args": ["Customer", "Order", "OrderItem"],
+        "condition": {"$gt": ["$Order.total_amount", 500]}
+      }
+    }
+  },
+  {"$sort": {"Customer.customerName": 1}},
+  {"$limit": 10}
 ]
 ```
 
-This enables combining the document assembly capabilities with MongoDB's rich aggregation framework.
+This enables combining the join capabilities with MongoDB's rich aggregation framework.
