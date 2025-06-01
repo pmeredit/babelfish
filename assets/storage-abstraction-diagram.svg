@@ -30,14 +30,14 @@
     </marker>
   </defs>
 
-  <!-- Layer 1: Assembly Query API -->
+  <!-- Layer 1: Join Query API -->
   <rect x="100" y="40" width="600" height="110" class="layer-box"/>
-  <text x="400" y="60" class="layer-title">Assembly Query API ($assemble)</text>
+  <text x="400" y="60" class="layer-title">Join Query API ($join)</text>
   <rect x="150" y="70" width="500" height="70" rx="4" ry="4" fill="#f7f9fb" stroke="#95a5a6" stroke-width="1"/>
   <text x="170" y="90" class="code-text">{ </text>
-  <text x="180" y="105" class="code-text"><tspan class="json-key">"entity"</tspan>: <tspan class="json-string">"Customer"</tspan>,</text>
-  <text x="180" y="120" class="code-text"><tspan class="json-key">"subassemble"</tspan>: [{ <tspan class="json-key">"entity"</tspan>: <tspan class="json-string">"Order"</tspan>,</text>
-    <text x="200" y="135" class="code-text"><tspan class="json-key">"filter"</tspan>: {<tspan class="json-key">"$gte":</tspan> [$Order.amount, 100]}}]</text>
+  <text x="180" y="105" class="code-text"><tspan class="json-key">"$inner"</tspan>: {</text>
+  <text x="180" y="120" class="code-text">  <tspan class="json-key">"args"</tspan>: [<tspan class="json-string">"Customer"</tspan>, <tspan class="json-string">"Order"</tspan>],</text>
+    <text x="200" y="135" class="code-text">  <tspan class="json-key">"condition"</tspan>: {<tspan class="json-key">"$gte":</tspan> [<tspan class="json-string">"$Order.amount"</tspan>, 100]}}}</text>
 
   <!-- Connection arrow -->
   <line x1="400" y1="150" x2="400" y2="188" class="arrow"/>
