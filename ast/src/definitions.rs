@@ -56,13 +56,14 @@ pub enum Stage {
     // This is used so that we can visit Stages that rewrite to multiple Stages.
     #[serde(skip)]
     SubPipeline(Pipeline),
-
     #[serde(rename = "$addFields", alias = "$set")]
     AddFields(LinkedHashMap<String, Expression>),
     #[serde(rename = "$assemble")]
     Assemble(Assemble),
     #[serde(rename = "$collection")]
     Collection(Collection),
+    #[serde(rename = "$conjure")]
+    Conjure(Vec<String>),
     #[serde(rename = "$documents")]
     Documents(Vec<LinkedHashMap<String, Expression>>),
     #[serde(rename = "$project")]
@@ -1839,6 +1840,7 @@ impl Stage {
     pub fn name(&self) -> &str {
         match self {
             Stage::Join(_) => "$join",
+            Stage::Conjure(_) => "$conjure",
             Stage::SubPipeline(_) => "$subPipeline",
             Stage::Collection(_) => "<collection>",
             Stage::Assemble(_) => "$assemble",

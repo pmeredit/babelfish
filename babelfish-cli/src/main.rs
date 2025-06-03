@@ -10,6 +10,7 @@ pub enum CliError {
     Json(serde_json::Error),
     Assemble(babelfish::assemble_rewrite::Error),
     AugmentedProject(babelfish::augmented_project_rewrite::Error),
+    Conjure(babelfish::conjure_rewrite::Error),
     Join(babelfish::join_rewrite::Error),
 }
 
@@ -49,6 +50,12 @@ impl From<babelfish::augmented_project_rewrite::Error> for CliError {
     }
 }
 
+impl From<babelfish::conjure_rewrite::Error> for CliError {
+    fn from(e: babelfish::conjure_rewrite::Error) -> Self {
+        CliError::Conjure(e)
+    }
+}
+
 #[derive(Parser, Debug)]
 #[command(version, about, long_about=None)]
 struct Cli {
@@ -71,6 +78,7 @@ fn main() {
             CliError::Assemble(e) => println!("Assemble error: {}", e),
             CliError::Join(e) => println!("Join error: {}", e),
             CliError::AugmentedProject(e) => println!("AugmentedProject error: {}", e),
+            CliError::Conjure(e) => println!("Conjure error: {}", e),
         }
     }
 }
@@ -86,6 +94,7 @@ fn run() -> Result<(), CliError> {
         let pipeline = std::fs::read_to_string(pipeline_file)?;
         let pipeline: Pipeline = serde_json::from_str(&pipeline)?;
         let pipeline = augmented_project_rewrite::rewrite_pipeline(pipeline)?;
+        let pipeline = conjure_rewrite::rewrite_pipeline(pipeline)?;
         let pipeline = assemble_rewrite::rewrite_pipeline(pipeline)?;
         let pipeline = join_rewrite::rewrite_pipeline(pipeline)?;
         let pipeline = match_movement_rewrite::rewrite_match_move(pipeline);

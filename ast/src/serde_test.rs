@@ -742,7 +742,7 @@ mod stage_test {
     mod join {
         use crate::{
             definitions::{
-                Expression, Join, JoinType, LiteralValue, NattyJoin, NattyJoinExpression, Pipeline,
+                Expression, FakeJoin, JoinType, LiteralValue, Join, JoinExpression, Pipeline,
                 ProjectItem, ProjectStage, Ref, Stage, UntaggedOperator, UntaggedOperatorName,
             },
             map,
@@ -750,14 +750,14 @@ mod stage_test {
 
         test_serde_stage!(
             natty_join,
-            expected = Stage::NattyJoin(Box::new(NattyJoin::Inner(NattyJoinExpression {
+            expected = Stage::Join(Box::new(Join::Inner(JoinExpression {
                 args: vec![
-                    NattyJoin::Entity("a".to_string(),),
-                    NattyJoin::Entity("b".to_string()),
-                    NattyJoin::Left(NattyJoinExpression {
+                    Join::Entity("a".to_string(),),
+                    Join::Entity("b".to_string()),
+                    Join::Left(JoinExpression {
                         args: vec![
-                            NattyJoin::Entity("c".to_string()),
-                            NattyJoin::Entity("d".to_string())
+                            Join::Entity("c".to_string()),
+                            Join::Entity("d".to_string())
                         ],
                         condition: Some(Expression::UntaggedOperator(UntaggedOperator {
                             op: UntaggedOperatorName::Gt,
@@ -775,7 +775,7 @@ mod stage_test {
 
         test_serde_stage!(
             inner_join,
-            expected = Stage::Join(Box::new(Join {
+            expected = Stage::FakeJoin(Box::new(FakeJoin {
                 database: None,
                 collection: Some("bar".to_string()),
                 let_body: None,
@@ -789,7 +789,7 @@ mod stage_test {
 
         test_serde_stage!(
             left_join_with_db,
-            expected = Stage::Join(Box::new(Join {
+            expected = Stage::FakeJoin(Box::new(FakeJoin {
                 database: Some("db".to_string()),
                 collection: Some("bar".to_string()),
                 let_body: None,
@@ -809,7 +809,7 @@ mod stage_test {
 
         test_serde_stage!(
             join_with_no_collection_and_pipeline,
-            expected = Stage::Join(Box::new(Join {
+            expected = Stage::FakeJoin(Box::new(FakeJoin {
                 database: None,
                 collection: None,
                 let_body: None,
@@ -835,7 +835,7 @@ mod stage_test {
 
         test_serde_stage!(
             join_with_let_vars_and_condition,
-            expected = Stage::Join(Box::new(Join {
+            expected = Stage::FakeJoin(Box::new(FakeJoin {
                 database: None,
                 collection: Some("bar".to_string()),
                 let_body: Some(map! {
@@ -873,19 +873,19 @@ mod stage_test {
 
         test_serde_stage!(
             nested_join,
-            expected = Stage::Join(Box::new(Join {
+            expected = Stage::FakeJoin(Box::new(FakeJoin {
                 database: None,
                 collection: Some("bar".to_string()),
                 let_body: None,
                 join_type: JoinType::Inner,
                 pipeline: Pipeline {
-                    pipeline: vec![Stage::Join(Box::new(Join {
+                    pipeline: vec![Stage::FakeJoin(Box::new(FakeJoin {
                         database: None,
                         collection: Some("baz".to_string()),
                         join_type: JoinType::Inner,
                         let_body: None,
                         pipeline: Pipeline {
-                            pipeline: vec![Stage::Join(Box::new(Join {
+                            pipeline: vec![Stage::FakeJoin(Box::new(FakeJoin {
                                 database: None,
                                 collection: Some("car".to_string()),
                                 join_type: JoinType::Inner,
