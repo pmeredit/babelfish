@@ -146,10 +146,10 @@ impl JoinGenerator {
 
                     match relationship.constraint.constraint_type {
                         ConstraintType::Embedded => {
-                            pipeline.push(Self::generate_for_embedded(relationship)?);
+                            pipeline.push(Self::generate_for_embedded(current.as_str(), relationship)?);
                         }
                         ConstraintType::Foreign => {
-                            pipeline.push(Self::generate_for_foreign(relationship)?);
+                            pipeline.push(Self::generate_for_foreign(current.as_str(), relationship)?);
                         }
                     }
                     current = entity;
@@ -192,20 +192,22 @@ impl JoinGenerator {
         }))
     }
 
-    fn generate_for_embedded(relationship: &ErdRelationship) -> Result<Stage> {
+    fn generate_for_embedded(local_entity: &str, relationship: &ErdRelationship) -> Result<Stage> {
+        let field = format!("{}.{}", local_entity,
+                        relationship
+                            .constraint
+                            .target_path
+                            .as_ref()
+                            .unwrap()
+                            .to_string());
         Ok(Stage::SubPipeline(Pipeline {
             pipeline: vec![
                 Stage::Unwind(Unwind::FieldPath(Expression::Ref(Ref::FieldRef(
-                    relationship
-                        .constraint
-                        .target_path
-                        .as_ref()
-                        .unwrap()
-                        .to_string(),
+                    field.clone(),
                 )))),
                 Stage::Project(ProjectStage {
                     items: map! {
-                        relationship.foreign_entity.to_string() => ProjectItem::Assignment(Expression::Ref(Ref::FieldRef(relationship.constraint.target_path.as_ref().unwrap().to_string()))),
+                        relationship.foreign_entity.to_string() => ProjectItem::Assignment(Expression::Ref(Ref::FieldRef(field))),
                         "_id".to_string() => ProjectItem::Exclusion,
                     },
                 }),
@@ -213,7 +215,7 @@ impl JoinGenerator {
         }))
     }
 
-    fn generate_for_foreign(relationship: &ErdRelationship) -> Result<Stage> {
+    fn generate_for_foreign(local_entity: &str, relationship: &ErdRelationship) -> Result<Stage> {
         Ok(Stage::SubPipeline(Pipeline {
             pipeline: vec![
                 Stage::Lookup(Lookup::Equality(EqualityLookup {
@@ -225,12 +227,14 @@ impl JoinGenerator {
                             .expect("Collection not found in foreign constraint")
                             .to_string(),
                     ),
-                    local_field: relationship
+                    local_field: format!("{}.{}", local_entity,
+                        relationship
                         .constraint
                         .local_key
                         .as_ref()
                         .expect("Missing localKey in foreign constraint")
-                        .to_string(),
+                        .to_string()
+                    ),
                     foreign_field: relationship
                         .constraint
                         .foreign_key

@@ -133,26 +133,6 @@
     "description": "Stores customer information and their embedded addresses.",
     "relationships": [
       {
-        "foreignEntity": "Address",
-        "relationshipType": "many-to-one",
-        "description": "Customers have multiple addresses, embedded within the customer document.",
-        "constraint": {
-          "constraintType": "embedded",
-          "direction": "child",
-          "targetPath": "addresses",
-          "projection": [
-            "street_address",
-            "city",
-            "state",
-            "postal_code",
-            "country",
-            "address_constraintType",
-            "is_default"
-          ]
-        },
-        "consistency": "strong"
-      },
-      {
         "foreignEntity": "Order",
         "relationshipType": "many-to-one",
         "description": "Links customers to their orders. Orders reference customers.",
@@ -398,7 +378,10 @@
         "relationshipType": "many-to-one",
         "description": "Order contains multiple order items, embedded within the order document using the canonical OrderItem structure.",
         "constraint": {
+          "collection": "order_items",
           "constraintType": "embedded",
+          "localKey": "_id",
+          "foreignKey": "order_ref_id",
           "direction": "child",
           "targetPath": "order_items",
           "projection": [
