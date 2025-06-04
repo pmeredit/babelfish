@@ -205,12 +205,10 @@ impl JoinGenerator {
                 Stage::Unwind(Unwind::FieldPath(Expression::Ref(Ref::FieldRef(
                     field.clone(),
                 )))),
-                Stage::Project(ProjectStage {
-                    items: map! {
-                        relationship.foreign_entity.to_string() => ProjectItem::Assignment(Expression::Ref(Ref::FieldRef(field))),
-                        "_id".to_string() => ProjectItem::Exclusion,
+                Stage::AddFields(map! {
+                        relationship.foreign_entity.to_string() => Expression::Ref(Ref::FieldRef(field)),
                     },
-                }),
+                ),
             ],
         }))
     }
