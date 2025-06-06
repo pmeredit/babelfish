@@ -8,9 +8,7 @@ pub struct Erd(HashMap<String, ErdItem>);
 impl Erd {
     pub fn get_relationship(&self, entity: &str, foreign_entity: &str) -> Option<&ErdRelationship> {
         self.0.get(entity).and_then(|item| {
-            item.relationships
-                .iter()
-                .find(|r| r.foreign_entity == foreign_entity)
+            item.relationships.get(foreign_entity)
         })
     }
 
@@ -26,7 +24,7 @@ pub struct ErdItem {
     pub primary_key: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    pub relationships: Vec<ErdRelationship>,
+    pub relationships: HashMap<String, ErdRelationship>,
     #[serde(serialize_with = "schema::serialize_json_schema")]
     #[serde(deserialize_with = "schema::deserialize_json_schema")]
     pub json_schema: Schema,
@@ -46,7 +44,6 @@ pub struct Source {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ErdRelationship {
-    pub foreign_entity: String,
     pub relationship_type: RelationshipType,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,

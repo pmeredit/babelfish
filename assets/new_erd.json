@@ -16,23 +16,22 @@
     },
     "primaryKey": "_id",
     "description": "Defines the canonical structure of a single address object. This schema is primarily used for embedding within Customer and Order collections. This 'collection' serves as a schema definition point.",
-    "relationships": [
-      {
-        "foreignEntity": "Customer",
-        "relationshipType": "many-to-one",
-        "description": "Original source relationship indicating an address might be linked to a customer. In the MongoDB model, addresses are typically embedded within customers.",
-        "constraint": {
-          "constraintType": "foreign",
-          "db": "ecommerce_db",
-          "collection": "customers",
-          "direction": "parent",
-          "localKey": "customer_id",
-          "foreignKey": "customer_id",
-          "projection": ["customer_id", "email"]
-        },
-        "consistency": "eventual"
-      }
-    ],
+    "relationships": { 
+        "Customer": {
+            "relationshipType": "many-to-one",
+            "description": "Original source relationship indicating an address might be linked to a customer. In the MongoDB model, addresses are typically embedded within customers.",
+            "constraint": {
+              "constraintType": "foreign",
+              "db": "ecommerce_db",
+              "collection": "customers",
+              "direction": "parent",
+              "localKey": "customer_id",
+              "foreignKey": "customer_id",
+              "projection": ["customer_id", "email"]
+            },
+            "consistency": "eventual"
+       }
+    },
     "jsonSchema": {
       "bsonType": "object",
       "required": [
@@ -84,7 +83,7 @@
         "original_product_id"
       ]
     },
-    "relationships": [],
+    "relationships": {},
     "jsonSchema": {
       "bsonType": "object",
       "required": [
@@ -131,29 +130,28 @@
     },
     "collection": "customers",
     "description": "Stores customer information and their embedded addresses.",
-    "relationships": [
-      {
-        "foreignEntity": "Order",
-        "relationshipType": "many-to-one",
-        "description": "Links customers to their orders. Orders reference customers.",
-        "constraint": {
-          "constraintType": "embedded",
-          "targetPath": "orders",
-          "db": "ecommerce_db",
-          "collection": "orders",
-          "direction": "parent",
-          "localKey": "_id",
-          "foreignKey": "customer_ref_id",
-          "projection": [
-            "original_order_id",
-            "order_date",
-            "total_amount",
-            "status"
-          ]
-        },
-        "consistency": "eventual"
-      }
-    ],
+    "relationships": {
+        "Order": {
+           "relationshipType": "many-to-one",
+           "description": "Links customers to their orders. Orders reference customers.",
+           "constraint": {
+             "constraintType": "embedded",
+             "targetPath": "orders",
+             "db": "ecommerce_db",
+             "collection": "orders",
+             "direction": "parent",
+             "localKey": "_id",
+             "foreignKey": "customer_ref_id",
+             "projection": [
+               "original_order_id",
+               "order_date",
+               "total_amount",
+               "status"
+             ]
+           },
+           "consistency": "eventual"
+        }
+    },
     "jsonSchema": {
       "bsonType": "object",
       "required": [
@@ -206,9 +204,8 @@
     },
     "primaryKey": "_id",
     "description": "Stores product categories.",
-    "relationships": [
-      {
-        "foreignEntity": "Product",
+    "relationships": {
+      "Product": {
         "relationshipType": "many-to-one",
         "description": "Links categories to their products. Products reference categories.",
         "constraint": {
@@ -222,7 +219,7 @@
         },
         "consistency": "eventual"
       }
-    ],
+    },
     "jsonSchema": {
       "bsonType": "object",
       "required": ["_id", "category_name"],
@@ -254,23 +251,22 @@
     },
     "primaryKey": "_id",
     "description": "Stores product information.",
-    "relationships": [
-      {
-        "foreignEntity": "Category",
-        "relationshipType": "many-to-one",
-        "description": "Products belong to a category. This product references a category.",
-        "constraint": {
-          "constraintType": "foreign",
-          "db": "ecommerce_db",
-          "collection": "categories",
-          "direction": "child",
-          "localKey": "category_ref_id",
-          "foreignKey": "_id",
-          "projection": ["original_category_id", "category_name"]
-        },
-        "consistency": "eventual"
-      }
-    ],
+    "relationships": {
+        "Category": {
+            "relationshipType": "many-to-one",
+            "description": "Products belong to a category. This product references a category.",
+            "constraint": {
+              "constraintType": "foreign",
+              "db": "ecommerce_db",
+              "collection": "categories",
+              "direction": "child",
+              "localKey": "category_ref_id",
+              "foreignKey": "_id",
+              "projection": ["original_category_id", "category_name"]
+            },
+            "consistency": "eventual"
+        }
+    },
     "jsonSchema": {
       "bsonType": "object",
       "required": [
@@ -316,65 +312,61 @@
     },
     "primaryKey": "_id",
     "description": "Stores order information, embedding order items, shipping and billing addresses (as snapshots). References customer.",
-    "relationships": [
-      {
-        "foreignEntity": "Customer",
-        "relationshipType": "many-to-one",
-        "description": "Order belongs to a customer. This order references a customer.",
-        "constraint": {
-          "constraintType": "foreign",
-          "db": "ecommerce_db",
-          "collection": "customers",
-          "direction": "child",
-          "localKey": "customer_ref_id",
-          "foreignKey": "_id",
-          "projection": [
-            "original_customer_id",
-            "email",
-            "first_name",
-            "last_name"
-          ]
+    "relationships": {
+        "Customer": {
+            "relationshipType": "many-to-one",
+            "description": "Order belongs to a customer. This order references a customer.",
+            "constraint": {
+              "constraintType": "foreign",
+              "db": "ecommerce_db",
+              "collection": "customers",
+              "direction": "child",
+              "localKey": "customer_ref_id",
+              "foreignKey": "_id",
+              "projection": [
+                "original_customer_id",
+                "email",
+                "first_name",
+                "last_name"
+              ]
+            },
+           "consistency": "eventual"
         },
-        "consistency": "eventual"
+        "ShippingAddress": {
+            "relationshipType": "one-to-one",
+            "description": "Order has a shipping address, embedded as a snapshot using the canonical Address structure.",
+            "constraint": {
+              "constraintType": "embedded",
+              "direction": "child",
+              "targetPath": "shipping_address",
+              "projection": [
+                "street_address",
+                "city",
+                "state",
+                "postal_code",
+                "country"
+              ]
+            },
+            "consistency": "strong"
+       },
+       "BillingAddress": {  
+           "relationshipType": "one-to-one",
+           "description": "Order has a billing address, embedded as a snapshot using the canonical Address structure.",
+           "constraint": {
+              "constraintType": "embedded",
+              "direction": "child",
+              "targetPath": "billing_address",
+              "projection": [
+                "street_address",
+                "city",
+                "state",
+                "postal_code",
+                "country"
+              ]
+           },
+           "consistency": "strong"
       },
-      {
-        "foreignEntity": "Address",
-        "relationshipType": "one-to-one",
-        "description": "Order has a shipping address, embedded as a snapshot using the canonical Address structure.",
-        "constraint": {
-          "constraintType": "embedded",
-          "direction": "child",
-          "targetPath": "shipping_address",
-          "projection": [
-            "street_address",
-            "city",
-            "state",
-            "postal_code",
-            "country"
-          ]
-        },
-        "consistency": "strong"
-      },
-      {
-        "foreignEntity": "Address",
-        "relationshipType": "one-to-one",
-        "description": "Order has a billing address, embedded as a snapshot using the canonical Address structure.",
-        "constraint": {
-          "constraintType": "embedded",
-          "direction": "child",
-          "targetPath": "billing_address",
-          "projection": [
-            "street_address",
-            "city",
-            "state",
-            "postal_code",
-            "country"
-          ]
-        },
-        "consistency": "strong"
-      },
-      {
-        "foreignEntity": "OrderItem",
+      "OrderItem": {
         "relationshipType": "many-to-one",
         "description": "Order contains multiple order items, embedded within the order document using the canonical OrderItem structure.",
         "constraint": {
@@ -394,7 +386,7 @@
         },
         "consistency": "strong"
       }
-    ],
+    },
     "jsonSchema": {
       "bsonType": "object",
       "required": [

@@ -1,4 +1,4 @@
-use crate::erd::{ConstraintType, Erd, ErdRelationship, Source};
+use crate::erd::{ConstraintType, Erd, ErdRelationship};
 use ast::{
     definitions::{
         visitor::Visitor, EqualityLookup, Expression, Join, JoinExpression, Lookup, LookupFrom,
@@ -129,11 +129,7 @@ impl JoinGenerator {
                 let Join::Entity(mut current) = args.remove(0) else {
                     panic!("Only supporting entities")
                 };
-                let source = self
-                    .entities
-                    .get_source(&current)
-                    .expect(format!("Missing source for entity {}", current).as_str());
-                pipeline.push(Self::generate_for_source(source, current.clone())?);
+                pipeline.push(self.generate_for_source(current.clone())?);
                 for arg in args {
                     let Join::Entity(entity) = arg else {
                         panic!("Only supporting entities")
@@ -146,10 +142,10 @@ impl JoinGenerator {
 
                     match relationship.constraint.constraint_type {
                         ConstraintType::Embedded => {
-                            pipeline.push(Self::generate_for_embedded(current.as_str(), relationship)?);
+                            pipeline.push(self.generate_for_embedded(current.as_str(), entity.as_str(), relationship)?);
                         }
                         ConstraintType::Foreign => {
-                            pipeline.push(Self::generate_for_foreign(current.as_str(), relationship)?);
+                            pipeline.push(self.generate_for_foreign(current.as_str(), entity.as_str(), relationship)?);
                         }
                     }
                     current = entity;
@@ -168,7 +164,10 @@ impl JoinGenerator {
         Ok(pipeline)
     }
 
-    fn generate_for_source(source: &Source, entity: String) -> Result<Stage> {
+    fn generate_for_source(&self, entity: String) -> Result<Stage> {
+        let source = self.entities
+            .get_source(&entity)
+            .ok_or_else(|| Error::EntityMissingFromErd(entity.clone()))?;
         if source.target_path.is_none() {
             return Ok(Stage::Project(ProjectStage {
                 items: map! {
@@ -192,7 +191,7 @@ impl JoinGenerator {
         }))
     }
 
-    fn generate_for_embedded(local_entity: &str, relationship: &ErdRelationship) -> Result<Stage> {
+    fn generate_for_embedded(&self, local_entity: &str, foreign_entity: &str, relationship: &ErdRelationship) -> Result<Stage> {
         let field = format!("{}.{}", local_entity,
                         relationship
                             .constraint
@@ -206,14 +205,14 @@ impl JoinGenerator {
                     field.clone(),
                 )))),
                 Stage::AddFields(map! {
-                        relationship.foreign_entity.to_string() => Expression::Ref(Ref::FieldRef(field)),
+                        foreign_entity.to_string() => Expression::Ref(Ref::FieldRef(field)),
                     },
                 ),
             ],
         }))
     }
 
-    fn generate_for_foreign(local_entity: &str, relationship: &ErdRelationship) -> Result<Stage> {
+    fn generate_for_foreign(&self, local_entity: &str, foreign_entity: &str, relationship: &ErdRelationship) -> Result<Stage> {
         Ok(Stage::SubPipeline(Pipeline {
             pipeline: vec![
                 Stage::Lookup(Lookup::Equality(EqualityLookup {
@@ -239,10 +238,10 @@ impl JoinGenerator {
                         .as_ref()
                         .expect("Missing foreign key in foreign constraint")
                         .to_string(),
-                    as_var: relationship.foreign_entity.to_string(),
+                    as_var: foreign_entity.to_string(),
                 })),
                 Stage::Unwind(Unwind::FieldPath(Expression::Ref(Ref::FieldRef(
-                    relationship.foreign_entity.to_string(),
+                    foreign_entity.to_string(),
                 )))),
             ],
         }))
