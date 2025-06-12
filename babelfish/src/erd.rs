@@ -15,6 +15,14 @@ impl Erd {
     pub fn get_source(&self, entity: &str) -> Option<&Source> {
         self.0.get(entity).map(|item| &item.source)
     }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&String, &ErdItem)> {
+        self.0.iter()
+    }
+
+    pub fn size(&self) -> usize {
+        self.0.len()
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -50,9 +58,10 @@ pub struct ErdRelationship {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub consistency: Option<Consistency>,
     pub constraint: Constraint,
+    pub projection: Option<Vec<String>>,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum RelationshipType {
     #[serde(rename = "one-to-one")]
     OneToOne,
@@ -62,7 +71,7 @@ pub enum RelationshipType {
     ManyToMany,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum Consistency {
     #[serde(rename = "strong")]
     Strong,
@@ -72,7 +81,7 @@ pub enum Consistency {
     Eventual,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Constraint {
     pub constraint_type: ConstraintType,
@@ -92,14 +101,14 @@ pub struct Constraint {
     pub projection: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy, Hash)]
 #[serde(rename_all = "camelCase")]
 pub enum ConstraintType {
     Foreign,
     Embedded,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy, Hash)]
 #[serde(rename_all = "camelCase")]
 pub enum ConstraintDirection {
     Parent,

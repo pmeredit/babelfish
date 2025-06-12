@@ -1,4 +1,4 @@
-use crate::erd::{ConstraintType, Erd, ErdRelationship};
+use crate::{erd::{ConstraintType, Erd, ErdRelationship}, erd_graph};
 use ast::{
     definitions::{
         visitor::Visitor, EqualityLookup, Expression, Join, JoinExpression, Lookup, LookupFrom,
@@ -86,6 +86,7 @@ impl Visitor for JoinRewrite {
                     .map_err(|_| Error::CouldNotFindErd("assets/new_erd.json".to_string())));
                 let erd: Erd =
                     handle_error!(serde_json::from_str(&erd_json).map_err(Error::CouldNotParseErd));
+                erd_graph::erd_to_graph(&erd);
                 let mut generator = JoinGenerator { entities: erd };
                 let sub_pipeline = handle_error!(generator.generate_join(*j));
                 Stage::SubPipeline(sub_pipeline)

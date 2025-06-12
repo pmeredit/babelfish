@@ -11,3 +11,4 @@ ast = { path = "../ast" }
 thiserror = { workspace = true }
 tailcall = { workspace = true }
 linked-hash-map = { workspace = true }
+petgraph = { workspace = true }
