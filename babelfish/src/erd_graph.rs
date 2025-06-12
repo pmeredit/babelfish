@@ -20,7 +20,16 @@ pub fn erd_to_graph(erd: &Erd) -> (UnGraph<String, usize>, HashMap<String, NodeI
                 continue; // Skip self-loops
             }
             let weight = get_weight(erd, source_entity_name, target_entity_name);
-            graph.add_edge(*source_index, *target_index, weight);
+            if let Some(old_edge) = graph.find_edge(*target_index, *source_index) {
+                let old_weight = graph.edge_weight_mut(old_edge).unwrap();
+                // If an edge already exists, we should update the weight to the cheaper weight,
+                // this can happen if we are replacing the source with a direct relationship.
+                if weight < *old_weight {
+                    *old_weight = weight;
+                }
+            } else {
+                graph.add_edge(*source_index, *target_index, weight);
+            }
         }
     }
 
@@ -37,9 +46,9 @@ fn get_weight(erd: &Erd, source_entity_name: &str, target_entity_name: &str) -> 
             (ConstraintType::Embedded, RelationshipType::OneToOne) => 1,
             (ConstraintType::Embedded, RelationshipType::ManyToOne) => 2,
             (ConstraintType::Embedded, RelationshipType::ManyToMany) => 4,
-            (ConstraintType::Foreign, RelationshipType::OneToOne) => erd.size() / 4,
-            (ConstraintType::Foreign, RelationshipType::ManyToOne) => erd.size() / 2,
-            (ConstraintType::Foreign, RelationshipType::ManyToMany) => erd.size(),
+            (ConstraintType::Foreign, RelationshipType::OneToOne) => erd.size(),
+            (ConstraintType::Foreign, RelationshipType::ManyToOne) => erd.size() * 2,
+            (ConstraintType::Foreign, RelationshipType::ManyToMany) => erd.size() * 4,
         }
     };
     if let Some(relationship) = erd.get_relationship(source_entity_name, target_entity_name) {
