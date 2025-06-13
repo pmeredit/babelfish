@@ -17,12 +17,6 @@ pub enum EdgeData {
         target_path: String,
         // Assume foreign_key and local_key are the primary keys for each entity
     },
-    CollectionSource {
-        db: String,
-        collection: String,
-        relationship_type: RelationshipType,
-        // Assume foreign_key and local_key are the primary keys for each entity
-    },
     Embedded{
         source_entity: String,
         target_path: String,
@@ -31,9 +25,9 @@ pub enum EdgeData {
     Foreign {
         db: String,
         collection: String,
-        relationship_type: RelationshipType,
         foreign_key: String,
         local_key: String,
+        relationship_type: RelationshipType,
     },
 }
 
@@ -63,6 +57,10 @@ impl ErdGraph {
         Self { graph, node_indices, edge_data }
     }
 
+    pub fn get_entity_name(&self, node_index: NodeIndex) -> Option<&String> {
+        self.graph.node_weight(node_index)
+    }
+
     pub fn get_steiner_tree(&self, entities: &[String]) -> StableUnGraph<String, usize> {
         let nodes: Vec<_> = entities.iter().map(|entity| {
         self.node_indices.get(entity).expect("Entity not found in node indices").clone()
@@ -84,13 +82,13 @@ nodes.as_slice(),
             .and_then(|edges| edges.get(&target_index))
             .or_else(|| self.edge_data.get(&target_index).and_then(|edges| edges.get(&source_index)))
     }
+}
 
-    pub fn print(&self, entities: &[String]) {
-         println!("{:?}", Dot::with_config(&self.graph, &[]));
-         println!("Node indices: {:?}", self.node_indices);
-         println!("EdgeData: {:?}", self.edge_data);
-         let tree = self.get_steiner_tree(entities);
-         println!("Steiner tree: {:?}", Dot::with_config(&tree, &[]));
+impl std::fmt::Display for ErdGraph {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", Dot::with_config(&self.graph, &[]))?;
+        write!(f, "Node indices: {:?}", self.node_indices)?;
+        write!(f, "EdgeData: {:?}", self.edge_data)
     }
 }
 
@@ -152,9 +150,12 @@ fn get_edge_data(erd: &Erd, source_entity_name: &str, target_entity_name: &str) 
         }
         return (
             get_relationship_weight(ConstraintType::Foreign, RelationshipType::ManyToOne),
-            EdgeData::CollectionSource {
+            EdgeData::Foreign {
                 db: source.db.clone(),
                 collection: source.collection.clone(),
+                // TODO: Handle errors
+                local_key: erd.get_primary_key(source_entity_name).unwrap().clone(),
+                foreign_key: erd.get_primary_key(target_entity_name).unwrap().clone(),
                 relationship_type: RelationshipType::ManyToOne, // Default to ManyToOne if no relationship found
             });
     }

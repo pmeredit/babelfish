@@ -12,6 +12,10 @@ impl Erd {
         })
     }
 
+    pub fn get_primary_key(&self, entity: &str) -> Option<&String> {
+        self.0.get(entity).map(|item| &item.primary_key)
+    }
+
     pub fn get_source(&self, entity: &str) -> Option<&Source> {
         self.0.get(entity).map(|item| &item.source)
     }

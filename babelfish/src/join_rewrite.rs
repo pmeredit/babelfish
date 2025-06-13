@@ -1,4 +1,4 @@
-use crate::{erd::{ConstraintType, Erd, ErdRelationship}, erd_graph};
+use crate::{erd::{ConstraintType, Erd, ErdRelationship, RelationshipType}, erd_graph::{self, EdgeData}};
 use ast::{
     definitions::{
         visitor::Visitor, EqualityLookup, Expression, Join, JoinExpression, Lookup, LookupFrom,
@@ -41,6 +41,8 @@ pub enum Error {
     EntityNotInScope(String),
     #[error("Disagreeing constraint types for fields in subassemble filter")]
     DisagreeingConstraintTypes,
+    #[error("No entities provided for join")]
+    NoEntities,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -123,35 +125,34 @@ impl JoinGenerator {
         // assume only inner and only one level
         match join {
             Join::Inner(JoinExpression {
-                mut args,
+                args,
                 condition,
             }) => {
                 let erd_graph = erd_graph::ErdGraph::new(&self.entities);
                 let entities = args.iter().map(|e| if let Join::Entity(e) = e { e.to_string() } else { panic!("only supporting Entities right now") }).collect::<Vec<_>>();
-                erd_graph.print(&entities);
-                let Join::Entity(mut current) = args.remove(0) else {
-                    panic!("Only supporting entities")
-                };
-                pipeline.push(self.generate_for_source(current.clone())?);
-                for arg in args {
-                    let Join::Entity(entity) = arg else {
-                        panic!("Only supporting entities")
-                    };
-
-                    let relationship = self
-                        .entities
-                        .get_relationship(&current, &entity)
-                        .expect(format!("Missing relationship {} => {}", current, entity).as_str());
-
-                    match relationship.constraint.constraint_type {
-                        ConstraintType::Embedded => {
-                            pipeline.push(self.generate_for_embedded(current.as_str(), entity.as_str(), relationship)?);
+                let tree = erd_graph.get_steiner_tree(&entities);
+                println!("{}", erd_graph);
+                println!("Steiner Tree: {:?}", tree);
+                let mut nodes = tree.node_indices();
+                let mut current = nodes.next().ok_or(Error::NoEntities)?;
+                pipeline.push(self.generate_for_source(tree.node_weight(current).unwrap())?);
+                while let Some(next) = nodes.next() {
+                    let source_entity = tree.node_weight(current).unwrap();
+                    let target_entity = tree.node_weight(next).unwrap();
+                    let edge_data = erd_graph.get_edge_data(current, next)
+                        .ok_or_else(|| Error::EntityMissingFromErd(format!("{} -> {}", source_entity, target_entity)))?;
+                    match edge_data {
+                        EdgeData::EmbeddedSource {..} => {
+                            pipeline.push(self.generate_for_source(&target_entity)?);
                         }
-                        ConstraintType::Foreign => {
-                            pipeline.push(self.generate_for_foreign(current.as_str(), entity.as_str(), relationship)?);
+                        EdgeData::Embedded { source_entity, target_path, relationship_type: _ } => {
+                            pipeline.push(self.generate_for_embedded(source_entity, target_entity, target_path)?);
+                        }
+                        EdgeData::Foreign { db: _, collection, foreign_key, local_key, relationship_type: _} => {
+                            pipeline.push(self.generate_for_foreign(source_entity, target_entity, collection, &local_key, &foreign_key )?)
                         }
                     }
-                    current = entity;
+                    current = next;
                 }
                 if let Some(condition) = condition {
                     pipeline.push(Stage::Match(MatchStage {
@@ -167,10 +168,10 @@ impl JoinGenerator {
         Ok(pipeline)
     }
 
-    fn generate_for_source(&self, entity: String) -> Result<Stage> {
+    fn generate_for_source(&self, entity: &str) -> Result<Stage> {
         let source = self.entities
-            .get_source(&entity)
-            .ok_or_else(|| Error::EntityMissingFromErd(entity.clone()))?;
+            .get_source(entity)
+            .ok_or_else(|| Error::EntityMissingFromErd(entity.to_string()))?;
         if source.target_path.is_none() {
             return Ok(Stage::Project(ProjectStage {
                 items: map! {
@@ -194,53 +195,28 @@ impl JoinGenerator {
         }))
     }
 
-    fn generate_for_embedded(&self, local_entity: &str, foreign_entity: &str, relationship: &ErdRelationship) -> Result<Stage> {
-        let field = format!("{}.{}", local_entity,
-                        relationship
-                            .constraint
-                            .target_path
-                            .as_ref()
-                            .unwrap()
-                            .to_string());
+    fn generate_for_embedded(&self, parent_entity: &str,  embedded_entity: &str, target_path: &str) -> Result<Stage> {
+        let field = format!("{}.{}", parent_entity, target_path);
         Ok(Stage::SubPipeline(Pipeline {
             pipeline: vec![
                 Stage::Unwind(Unwind::FieldPath(Expression::Ref(Ref::FieldRef(
                     field.clone(),
                 )))),
                 Stage::AddFields(map! {
-                        foreign_entity.to_string() => Expression::Ref(Ref::FieldRef(field)),
+                        embedded_entity.to_string() => Expression::Ref(Ref::FieldRef(field)),
                     },
                 ),
             ],
         }))
     }
 
-    fn generate_for_foreign(&self, local_entity: &str, foreign_entity: &str, relationship: &ErdRelationship) -> Result<Stage> {
+    fn generate_for_foreign(&self, local_entity: &str, foreign_entity: &str, coll: &str, local_key: &str, foreign_key: &str) -> Result<Stage> {
         Ok(Stage::SubPipeline(Pipeline {
             pipeline: vec![
                 Stage::Lookup(Lookup::Equality(EqualityLookup {
-                    from: LookupFrom::Collection(
-                        relationship
-                            .constraint
-                            .collection
-                            .as_ref()
-                            .expect("Collection not found in foreign constraint")
-                            .to_string(),
-                    ),
-                    local_field: format!("{}.{}", local_entity,
-                        relationship
-                        .constraint
-                        .local_key
-                        .as_ref()
-                        .expect("Missing localKey in foreign constraint")
-                        .to_string()
-                    ),
-                    foreign_field: relationship
-                        .constraint
-                        .foreign_key
-                        .as_ref()
-                        .expect("Missing foreign key in foreign constraint")
-                        .to_string(),
+                    from: LookupFrom::Collection(coll.to_string()),
+                    local_field: format!("{}.{}", local_entity, local_key),
+                    foreign_field: format!("{}.{}", foreign_entity, foreign_key),
                     as_var: foreign_entity.to_string(),
                 })),
                 Stage::Unwind(Unwind::FieldPath(Expression::Ref(Ref::FieldRef(
