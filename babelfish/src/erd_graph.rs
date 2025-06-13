@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use crate::erd::{ConstraintType, Erd, ErdRelationship, RelationshipType};
-use petgraph::{algo::steiner_tree, dot::Dot, graph::{NodeIndex, UnGraph}};
+use petgraph::{algo::steiner_tree, dot::Dot, graph::{NodeIndex, UnGraph}, prelude::StableUnGraph};
 
 pub struct ErdGraph {
     pub graph: UnGraph<String, usize>,
     pub node_indices: HashMap<String, NodeIndex>,
-    pub edge_data: HashMap<String, HashMap<String, EdgeData>>,
+    pub edge_data: HashMap<NodeIndex, HashMap<NodeIndex, EdgeData>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -55,34 +55,42 @@ impl ErdGraph {
             for (target_entity_name, target_index) in node_indices_vec.iter().skip(i+1) {
                 let (weight, constraint) = get_edge_data(erd, source_entity_name, target_entity_name);
                 graph.add_edge(*source_index, *target_index, weight);
-                edge_data.entry(source_entity_name.to_string())
+                edge_data.entry(*source_index)
                     .or_default()
-                    .insert(target_entity_name.to_string(), constraint);
+                    .insert(*target_index, constraint);
             }
         }
         Self { graph, node_indices, edge_data }
     }
 
-    pub fn to_steiner_tree(&self, entities: &[String]) -> Self {
+    pub fn get_steiner_tree(&self, entities: &[String]) -> StableUnGraph<String, usize> {
         let nodes: Vec<_> = entities.iter().map(|entity| {
         self.node_indices.get(entity).expect("Entity not found in node indices").clone()
         }).collect();
-        Self {
-            graph: steiner_tree::steiner_tree(
-                &self.graph,
-     nodes.as_slice(),
-            ).into(),
-            node_indices: self.node_indices.clone(),
-            edge_data: self.edge_data.clone(),
-        }
+        steiner_tree::steiner_tree(
+           &self.graph,
+nodes.as_slice(),
+        )
+    }
+
+    pub fn get_edge_data_by_names(&self, source_entity_name: &str, target_entity_name: &str) -> Option<&EdgeData> {
+        let source_index = self.node_indices.get(source_entity_name)?;
+        let target_index = self.node_indices.get(target_entity_name)?;
+        self.get_edge_data(*source_index, *target_index)
+    }
+
+    pub fn get_edge_data(&self, source_index: NodeIndex, target_index: NodeIndex) -> Option<&EdgeData> {
+        self.edge_data.get(&source_index)
+            .and_then(|edges| edges.get(&target_index))
+            .or_else(|| self.edge_data.get(&target_index).and_then(|edges| edges.get(&source_index)))
     }
 
     pub fn print(&self, entities: &[String]) {
          println!("{:?}", Dot::with_config(&self.graph, &[]));
          println!("Node indices: {:?}", self.node_indices);
          println!("EdgeData: {:?}", self.edge_data);
-         let tree = self.to_steiner_tree(entities);
-         println!("Steiner tree: {:?}", Dot::with_config(&tree.graph, &[]));
+         let tree = self.get_steiner_tree(entities);
+         println!("Steiner tree: {:?}", Dot::with_config(&tree, &[]));
     }
 }
 
