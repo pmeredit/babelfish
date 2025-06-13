@@ -1,4 +1,4 @@
-use crate::{erd::{ConstraintType, Erd, ErdRelationship, RelationshipType}, erd_graph::{self, EdgeData}};
+use crate::{erd::Erd, erd_graph::{self, EdgeData}};
 use ast::{
     definitions::{
         visitor::Visitor, EqualityLookup, Expression, Join, JoinExpression, Lookup, LookupFrom,
@@ -132,8 +132,8 @@ impl JoinGenerator {
                 let entities = args.iter().map(|e| if let Join::Entity(e) = e { e.to_string() } else { panic!("only supporting Entities right now") }).collect::<Vec<_>>();
                 let tree = erd_graph.get_steiner_tree(&entities);
                 println!("{}", erd_graph);
-                println!("Steiner Tree: {:?}", tree);
-                let mut nodes = tree.node_indices();
+                println!("{}", tree);
+                let mut nodes = tree.topological_sort().into_iter();
                 let mut current = nodes.next().ok_or(Error::NoEntities)?;
                 pipeline.push(self.generate_for_source(tree.node_weight(current).unwrap())?);
                 while let Some(next) = nodes.next() {

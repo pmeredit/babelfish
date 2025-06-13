@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 use crate::erd::{ConstraintType, Erd, ErdRelationship, RelationshipType};
 use petgraph::{algo::steiner_tree, dot::Dot, graph::{NodeIndex, UnGraph}, prelude::StableUnGraph};
@@ -7,6 +7,13 @@ pub struct ErdGraph {
     pub graph: UnGraph<String, usize>,
     pub node_indices: HashMap<String, NodeIndex>,
     pub edge_data: HashMap<NodeIndex, HashMap<NodeIndex, EdgeData>>,
+}
+
+pub struct SteinerTree<'a> {
+    pub graph: StableUnGraph<String, usize>,
+    pub root: NodeIndex,
+    pub node_indices: &'a HashMap<String, NodeIndex>,
+    pub edge_data: &'a HashMap<NodeIndex, HashMap<NodeIndex, EdgeData>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -61,14 +68,43 @@ impl ErdGraph {
         self.graph.node_weight(node_index)
     }
 
-    pub fn get_steiner_tree(&self, entities: &[String]) -> StableUnGraph<String, usize> {
+    pub fn get_steiner_tree(&self, entities: &[String]) -> SteinerTree<'_> {
         let nodes: Vec<_> = entities.iter().map(|entity| {
-        self.node_indices.get(entity).expect("Entity not found in node indices").clone()
+            self.node_indices.get(entity).expect("Entity not found in node indices").clone()
         }).collect();
-        steiner_tree::steiner_tree(
-           &self.graph,
-nodes.as_slice(),
-        )
+        let graph = steiner_tree::steiner_tree(
+            &self.graph,
+            nodes.as_slice(),
+        );
+        let mut root = NodeIndex::end();
+        for edge in graph.edge_indices() {
+            let (source, target) =  graph.edge_endpoints(edge).expect("Edge endpoints not found");
+            let edge_data = self.get_edge_data(source, target)
+                .expect("Edge data not found for steiner tree");
+            println!("Edge: {:?} -> {:?}, Data: {:?}", 
+                self.get_entity_name(source).unwrap(), 
+                self.get_entity_name(target).unwrap(), 
+                edge_data);
+            match edge_data {
+                EdgeData::EmbeddedSource { .. } | EdgeData::Foreign { .. } => {
+                    root = target;
+                    break;
+                }
+                _ => {}
+            }
+        }
+        if root == NodeIndex::end() {
+            println!("edge_data: {:?}", self.edge_data);
+        }
+
+        println!("Steiner tree root: {:?}", root);
+
+        SteinerTree {
+            graph,
+            root,
+            node_indices: &self.node_indices,
+            edge_data: &self.edge_data,
+        }
     }
 
     pub fn get_edge_data_by_names(&self, source_entity_name: &str, target_entity_name: &str) -> Option<&EdgeData> {
@@ -84,11 +120,59 @@ nodes.as_slice(),
     }
 }
 
+impl SteinerTree<'_> {
+    pub fn get_edge_data(&self, source_index: NodeIndex, target_index: NodeIndex) -> Option<&EdgeData> {
+        self.edge_data.get(&source_index)
+            .and_then(|edges| edges.get(&target_index))
+            .or_else(|| self.edge_data.get(&target_index).and_then(|edges| edges.get(&source_index)))
+    }
+
+    pub fn get_entity_name(&self, node_index: NodeIndex) -> Option<&String> {
+        self.graph.node_weight(node_index)
+    }
+
+    pub fn topological_sort(&self) -> Vec<NodeIndex> {
+        let mut ret = Vec::new();
+        let mut visited = std::collections::HashSet::new();
+        self.topo_aux(self.root, &mut ret, &mut visited);  
+        println!("sorted nodes: {:?}", ret);
+        println!("Topological sort: {:?}", ret.iter().map(|n| self.get_entity_name(*n).unwrap()).collect::<Vec<_>>());
+        ret
+    }
+
+    fn topo_aux(&self, node: NodeIndex, ret: &mut Vec<NodeIndex>, visited: &mut HashSet<NodeIndex>) {
+        if visited.contains(&node) {
+            return;
+        }
+        ret.push(node);
+        let mut worklist = Vec::new();
+        for neighbor in self.graph.neighbors(node) {
+            if visited.contains(&neighbor) {
+                continue;
+            }
+            ret.push(neighbor);
+            worklist.push(neighbor);
+            visited.insert(neighbor);
+        }
+        for neighbor in worklist {
+            self.topo_aux(neighbor, ret, visited);
+        }
+    }
+
+    pub fn node_weight(&self, node_index: NodeIndex) -> Option<&String> {
+        self.graph.node_weight(node_index)
+    }
+}
+
 impl std::fmt::Display for ErdGraph {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", Dot::with_config(&self.graph, &[]))?;
-        write!(f, "Node indices: {:?}", self.node_indices)?;
-        write!(f, "EdgeData: {:?}", self.edge_data)
+        write!(f, "{:?}", Dot::with_config(&self.graph, &[]))
+    }
+}
+
+impl std::fmt::Display for SteinerTree<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", Dot::with_config(&self.graph, &[]))
     }
 }
 
