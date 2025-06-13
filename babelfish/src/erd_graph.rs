@@ -1,17 +1,47 @@
 use std::collections::HashMap;
-
-use crate::erd::{Erd, RelationshipType, ConstraintType};
-use petgraph::{algo::steiner_tree, dot::Dot, graph::{NodeIndex, UnGraph}, prelude::StableUnGraph};
+use serde::{Deserialize, Serialize};
+use crate::erd::{ConstraintType, Erd, ErdRelationship, RelationshipType};
+use petgraph::{algo::steiner_tree, dot::Dot, graph::{NodeIndex, UnGraph}};
 
 pub struct ErdGraph {
     pub graph: UnGraph<String, usize>,
     pub node_indices: HashMap<String, NodeIndex>,
+    pub edge_data: HashMap<String, HashMap<String, EdgeData>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum EdgeData {
+    EmbeddedSource {
+        db: String,
+        collection: String,
+        target_path: String,
+        // Assume foreign_key and local_key are the primary keys for each entity
+    },
+    CollectionSource {
+        db: String,
+        collection: String,
+        relationship_type: RelationshipType,
+        // Assume foreign_key and local_key are the primary keys for each entity
+    },
+    Embedded{
+        source_entity: String,
+        target_path: String,
+        relationship_type: RelationshipType,
+    },
+    Foreign {
+        db: String,
+        collection: String,
+        relationship_type: RelationshipType,
+        foreign_key: String,
+        local_key: String,
+    },
 }
 
 impl ErdGraph {
     pub fn new(erd: &Erd) -> Self {
         let mut graph = UnGraph::default();
-        let mut node_indices = std::collections::HashMap::new();
+        let mut node_indices = HashMap::new();
+        let mut edge_data: HashMap<_, HashMap<_,_>> = HashMap::new();
         
         // Add entities as nodes
         for (entity_name, _) in erd.iter() {
@@ -20,49 +50,46 @@ impl ErdGraph {
             node_indices.insert(entity_name.to_string(), node_index);
         }
         
-        for (source_entity_name, source_index) in node_indices.iter() {
-            for (target_entity_name, target_index) in node_indices.iter() {
-                if source_index == target_index {
-                    continue; // Skip self-loops
-                }
-                let weight = get_weight(erd, source_entity_name, target_entity_name);
-                if let Some(old_edge) = graph.find_edge(*target_index, *source_index) {
-                    let old_weight = graph.edge_weight_mut(old_edge).unwrap();
-                    // If an edge already exists, we should update the weight to the cheaper weight,
-                    // this can happen if we are replacing the source with a direct relationship.
-                    if weight < *old_weight {
-                        *old_weight = weight;
-                    }
-                } else {
-                    graph.add_edge(*source_index, *target_index, weight);
-                }
+        let node_indices_vec: Vec<_> = node_indices.iter().map(|(s, n)|(s, *n)).collect();
+        for (i, (source_entity_name, source_index)) in node_indices_vec.iter().enumerate() {
+            for (target_entity_name, target_index) in node_indices_vec.iter().skip(i+1) {
+                let (weight, constraint) = get_edge_data(erd, source_entity_name, target_entity_name);
+                graph.add_edge(*source_index, *target_index, weight);
+                edge_data.entry(source_entity_name.to_string())
+                    .or_default()
+                    .insert(target_entity_name.to_string(), constraint);
             }
         }
-        ErdGraph { graph, node_indices }
+        Self { graph, node_indices, edge_data }
     }
 
-    pub fn to_steiner_tree(&self, entities: &[String]) -> StableUnGraph<String, usize> {
+    pub fn to_steiner_tree(&self, entities: &[String]) -> Self {
         let nodes: Vec<_> = entities.iter().map(|entity| {
         self.node_indices.get(entity).expect("Entity not found in node indices").clone()
         }).collect();
-        steiner_tree::steiner_tree(
-            &self.graph,
- nodes.as_slice(),
-        )
+        Self {
+            graph: steiner_tree::steiner_tree(
+                &self.graph,
+     nodes.as_slice(),
+            ).into(),
+            node_indices: self.node_indices.clone(),
+            edge_data: self.edge_data.clone(),
+        }
     }
 
     pub fn print(&self, entities: &[String]) {
          println!("{:?}", Dot::with_config(&self.graph, &[]));
          println!("Node indices: {:?}", self.node_indices);
+         println!("EdgeData: {:?}", self.edge_data);
          let tree = self.to_steiner_tree(entities);
-         println!("Steiner tree: {:?}", Dot::with_config(&tree, &[]));
+         println!("Steiner tree: {:?}", Dot::with_config(&tree.graph, &[]));
     }
 }
 
-fn get_weight(erd: &Erd, source_entity_name: &str, target_entity_name: &str) -> usize {
+fn get_edge_data(erd: &Erd, source_entity_name: &str, target_entity_name: &str) -> (usize, EdgeData) {
     let get_relationship_weight = |relationship_type, constraint_type| {
         match (relationship_type, constraint_type) {
-            // weights should actually be based of cardinality with a large constant factor for
+            // datas should actually be based of cardinality with a large constant factor for
             // being foreign vs embeded
             (ConstraintType::Embedded, RelationshipType::OneToOne) => 1,
             (ConstraintType::Embedded, RelationshipType::ManyToOne) => 2,
@@ -72,18 +99,56 @@ fn get_weight(erd: &Erd, source_entity_name: &str, target_entity_name: &str) -> 
             (ConstraintType::Foreign, RelationshipType::ManyToMany) => erd.size() * 4,
         }
     };
-    if let Some(relationship) = erd.get_relationship(source_entity_name, target_entity_name) {
-        get_relationship_weight(relationship.constraint.constraint_type, relationship.relationship_type)
-    } else if let Some(source) = erd.get_source(source_entity_name) {
-        get_relationship_weight(
-            if source.target_path.is_some() {
-                ConstraintType::Embedded
-            } else {
-                ConstraintType::Foreign
+    let get_relationship_constraint = |entity_name: &str, relationship: &ErdRelationship| {
+        match relationship.constraint.constraint_type {
+            ConstraintType::Embedded => EdgeData::Embedded {
+                source_entity: entity_name.to_string(),
+                target_path: relationship.constraint.target_path.clone().unwrap_or_default(),
+                relationship_type: relationship.relationship_type, // Default to ManyToOne if no relationship found
             },
-            RelationshipType::ManyToOne, // Default to ManyToOne if no relationship found
-        )
-    } else {
-        unreachable!() // No source found
+            ConstraintType::Foreign => {
+                let source = erd.get_source(entity_name).expect("Source not found");
+                EdgeData::Foreign {
+                    db: source.db.clone(),
+                    collection: source.collection.clone(),
+                    relationship_type: relationship.relationship_type,
+                    foreign_key: relationship.constraint.foreign_key.clone().unwrap(),
+                    local_key: relationship.constraint.local_key.clone().unwrap(),
+                }
+            },
+        }
+    };
+    if let Some(relationship) = erd.get_relationship(source_entity_name, target_entity_name) {
+        return (
+            get_relationship_weight(relationship.constraint.constraint_type, relationship.relationship_type),
+            get_relationship_constraint(source_entity_name, relationship),
+        );
+
     }
+    if let Some(relationship) = erd.get_relationship(target_entity_name, source_entity_name) {
+        return (
+            get_relationship_weight(relationship.constraint.constraint_type, relationship.relationship_type),
+            get_relationship_constraint(target_entity_name, relationship),
+        );
+    }
+    if let Some(ref source) = erd.get_source(source_entity_name) {
+        if let Some(ref target_path) = source.target_path {
+            return (
+                get_relationship_weight(ConstraintType::Embedded, RelationshipType::ManyToOne),
+                EdgeData::EmbeddedSource {
+                    db: source.db.clone(),
+                    collection: source.collection.clone(),
+                    target_path: target_path.clone(),
+                },
+            );
+        }
+        return (
+            get_relationship_weight(ConstraintType::Foreign, RelationshipType::ManyToOne),
+            EdgeData::CollectionSource {
+                db: source.db.clone(),
+                collection: source.collection.clone(),
+                relationship_type: RelationshipType::ManyToOne, // Default to ManyToOne if no relationship found
+            });
+    }
+    unreachable!() // No source found
 }
