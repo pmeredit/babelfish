@@ -86,7 +86,6 @@ impl Visitor for JoinRewrite {
                     .map_err(|_| Error::CouldNotFindErd("assets/new_erd.json".to_string())));
                 let erd: Erd =
                     handle_error!(serde_json::from_str(&erd_json).map_err(Error::CouldNotParseErd));
-                erd_graph::erd_to_graph(&erd);
                 let mut generator = JoinGenerator { entities: erd };
                 let sub_pipeline = handle_error!(generator.generate_join(*j));
                 Stage::SubPipeline(sub_pipeline)
@@ -127,6 +126,9 @@ impl JoinGenerator {
                 mut args,
                 condition,
             }) => {
+                let erd_graph = erd_graph::ErdGraph::new(&self.entities);
+                let entities = args.iter().map(|e| if let Join::Entity(e) = e { e.to_string() } else { panic!("only supporting Entities right now") }).collect::<Vec<_>>();
+                erd_graph.print(&entities);
                 let Join::Entity(mut current) = args.remove(0) else {
                     panic!("Only supporting entities")
                 };
