@@ -129,33 +129,29 @@ impl JoinGenerator {
                 condition,
             }) => {
                 let erd_graph = erd_graph::ErdGraph::new(&self.entities);
-                let entities = args.iter().map(|e| if let Join::Entity(e) = e { e.to_string() } else { panic!("only supporting Entities right now") }).collect::<Vec<_>>();
-                let tree = erd_graph.get_steiner_tree(&entities);
                 println!("{}", erd_graph);
-                println!("{}", tree);
-                let mut nodes = tree.topological_sort().into_iter();
-                let mut current = nodes.next().ok_or(Error::NoEntities)?;
-                pipeline.push(self.generate_for_source(tree.node_weight(current).unwrap())?);
-                while let Some(next) = nodes.next() {
-                    let source_entity = tree.node_weight(current).unwrap();
-                    let target_entity = tree.node_weight(next).unwrap();
-                    println!("{} -> {}", source_entity, target_entity);
-                    let edge_data = erd_graph.get_edge_data(current, next)
-                        .ok_or_else(|| Error::EntityMissingFromErd(format!("{} -> {}", source_entity, target_entity)))?;
-                    println!("Edge data: {:?}", edge_data);
-                    match edge_data {
-                        EdgeData::EmbeddedSource {..} => {
-                            pipeline.push(self.generate_for_source(&target_entity)?);
-                        }
-                        EdgeData::Embedded { source_entity, target_path, relationship_type: _ } => {
-                            pipeline.push(self.generate_for_embedded(source_entity, target_entity, target_path)?);
-                        }
-                        EdgeData::Foreign { db: _, collection, foreign_key, local_key, relationship_type: _} => {
-                            pipeline.push(self.generate_for_foreign(source_entity, target_entity, collection, &local_key, &foreign_key )?)
-                        }
-                    }
-                    current = next;
-                }
+//                let mut current = nodes.next().ok_or(Error::NoEntities)?;
+//                pipeline.push(self.generate_for_source(tree.node_weight(current).unwrap())?);
+//                while let Some(next) = nodes.next() {
+//                    let source_entity = tree.node_weight(current).unwrap();
+//                    let target_entity = tree.node_weight(next).unwrap();
+//                    println!("{} -> {}", source_entity, target_entity);
+//                    let edge_data = erd_graph.get_edge_data(current, next)
+//                        .ok_or_else(|| Error::EntityMissingFromErd(format!("{} -> {}", source_entity, target_entity)))?;
+//                    println!("Edge data: {:?}", edge_data);
+//                    match edge_data {
+//                        EdgeData::EmbeddedSource {..} => {
+//                            pipeline.push(self.generate_for_source(&target_entity)?);
+//                        }
+//                        EdgeData::Embedded { source_entity, target_path, relationship_type: _ } => {
+//                            pipeline.push(self.generate_for_embedded(source_entity, target_entity, target_path)?);
+//                        }
+//                        EdgeData::Foreign { db: _, collection, foreign_key, local_key, relationship_type: _} => {
+//                            pipeline.push(self.generate_for_foreign(source_entity, target_entity, collection, &local_key, &foreign_key )?)
+//                        }
+//                    }
+//                    current = next;
+//                }
                 if let Some(condition) = condition {
                     pipeline.push(Stage::Match(MatchStage {
                         expr: vec![MatchExpression::Expr(MatchExpr {

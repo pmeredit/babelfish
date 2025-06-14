@@ -3,19 +3,10 @@ use serde::{Deserialize, Serialize};
 use crate::erd::{ConstraintType, Erd, ErdRelationship, RelationshipType};
 use petgraph::{algo::{self, steiner_tree}, dot::Dot, graph::{DiGraph, NodeIndex, UnGraph}, prelude::StableUnGraph, visit::{EdgeRef, IntoEdgeReferences}};
 
-use petgraph::visit::NodeIndexable;
-
-
 pub struct ErdGraph {
-    pub graph: UnGraph<String, usize>,
+    pub graph: DiGraph<String, usize>,
     pub node_indices: HashMap<String, NodeIndex>,
     pub edge_data: HashMap<NodeIndex, HashMap<NodeIndex, EdgeData>>,
-}
-
-pub struct SteinerTree<'a> {
-    pub graph: StableUnGraph<String, usize>,
-    pub node_indices: &'a HashMap<String, NodeIndex>,
-    pub edge_data: &'a HashMap<NodeIndex, HashMap<NodeIndex, EdgeData>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -52,7 +43,7 @@ impl EdgeData {
 
 impl ErdGraph {
     pub fn new(erd: &Erd) -> Self {
-        let mut graph = UnGraph::default();
+        let mut graph = DiGraph::default();
         let mut node_indices = HashMap::new();
         let mut edge_data: HashMap<_, HashMap<_,_>> = HashMap::new();
         
@@ -63,14 +54,19 @@ impl ErdGraph {
             node_indices.insert(entity_name.to_string(), node_index);
         }
         
+        // convert to Vec to induce a stable order
         let node_indices_vec: Vec<_> = node_indices.iter().map(|(s, n)|(s, *n)).collect();
-        for (i, (source_entity_name, source_index)) in node_indices_vec.iter().enumerate() {
-            for (target_entity_name, target_index) in node_indices_vec.iter().skip(i+1) {
-                let (weight, constraint) = get_edge_data(erd, source_entity_name, target_entity_name);
-                graph.add_edge(*source_index, *target_index, weight);
-                edge_data.entry(*source_index)
-                    .or_default()
-                    .insert(*target_index, constraint);
+        for (source_entity_name, source_index) in node_indices_vec.iter() {
+            for (target_entity_name, target_index) in node_indices_vec.iter() {
+                if source_entity_name == target_entity_name {
+                    continue; // Skip self-loops
+                }
+                if let Some((weight, constraint)) = get_edge_data(erd, source_entity_name, target_entity_name) {
+                    graph.add_edge(*source_index, *target_index, weight);
+                    edge_data.entry(*source_index)
+                        .or_default()
+                        .insert(*target_index, constraint);
+                }
             }
         }
         Self { graph, node_indices, edge_data }
@@ -78,21 +74,6 @@ impl ErdGraph {
 
     pub fn get_entity_name(&self, node_index: NodeIndex) -> Option<&String> {
         self.graph.node_weight(node_index)
-    }
-
-    pub fn get_steiner_tree(&self, entities: &[String]) -> SteinerTree<'_> {
-        let nodes: Vec<_> = entities.iter().map(|entity| {
-            self.node_indices.get(entity).expect("Entity not found in node indices").clone()
-        }).collect();
-        let graph = steiner_tree::steiner_tree(
-            &self.graph,
-            nodes.as_slice(),
-        );
-        SteinerTree {
-            graph,
-            node_indices: &self.node_indices,
-            edge_data: &self.edge_data,
-        }
     }
 
     pub fn get_edge_data_by_names(&self, source_entity_name: &str, target_entity_name: &str) -> Option<&EdgeData> {
@@ -108,44 +89,13 @@ impl ErdGraph {
     }
 }
 
-impl SteinerTree<'_> {
-    pub fn get_edge_data(&self, source_index: NodeIndex, target_index: NodeIndex) -> Option<&EdgeData> {
-        self.edge_data.get(&source_index)
-            .and_then(|edges| edges.get(&target_index))
-            .or_else(|| self.edge_data.get(&target_index).and_then(|edges| edges.get(&source_index)))
-    }
-
-    pub fn get_entity_name(&self, node_index: NodeIndex) -> Option<&String> {
-        self.graph.node_weight(node_index)
-    }
-
-    pub fn topological_sort(&self) -> Vec<NodeIndex> {
-        let mut ret = Vec::new();
-        for node in self.graph.node_indices() {
-            println!("Node: {}", self.graph.node_weight(node).unwrap());
-            ret.push(node);
-        }
-        ret
-    }
-
-    pub fn node_weight(&self, node_index: NodeIndex) -> Option<&String> {
-        self.graph.node_weight(node_index)
-    }
-}
-
 impl std::fmt::Display for ErdGraph {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", Dot::with_config(&self.graph, &[]))
     }
 }
 
-impl std::fmt::Display for SteinerTree<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", Dot::with_config(&self.graph, &[]))
-    }
-}
-
-fn get_edge_data(erd: &Erd, source_entity_name: &str, target_entity_name: &str) -> (usize, EdgeData) {
+fn get_edge_data(erd: &Erd, source_entity_name: &str, target_entity_name: &str) -> Option<(usize, EdgeData)> {
     let get_relationship_weight = |relationship_type, constraint_type| {
         match (relationship_type, constraint_type) {
             // datas should actually be based of cardinality with a large constant factor for
@@ -178,39 +128,11 @@ fn get_edge_data(erd: &Erd, source_entity_name: &str, target_entity_name: &str) 
         }
     };
     if let Some(relationship) = erd.get_relationship(source_entity_name, target_entity_name) {
-        return (
+        Some((
             get_relationship_weight(relationship.constraint.constraint_type, relationship.relationship_type),
             get_relationship_constraint(source_entity_name, relationship),
-        );
-
+        ))
+    } else {
+        None
     }
-    if let Some(relationship) = erd.get_relationship(target_entity_name, source_entity_name) {
-        return (
-            get_relationship_weight(relationship.constraint.constraint_type, relationship.relationship_type),
-            get_relationship_constraint(target_entity_name, relationship),
-        );
-    }
-    if let Some(ref source) = erd.get_source(source_entity_name) {
-        if let Some(ref target_path) = source.target_path {
-            return (
-                get_relationship_weight(ConstraintType::Embedded, RelationshipType::ManyToOne),
-                EdgeData::EmbeddedSource {
-                    db: source.db.clone(),
-                    collection: source.collection.clone(),
-                    target_path: target_path.clone(),
-                },
-            );
-        }
-        return (
-            get_relationship_weight(ConstraintType::Foreign, RelationshipType::ManyToOne),
-            EdgeData::Foreign {
-                db: source.db.clone(),
-                collection: source.collection.clone(),
-                // TODO: Handle errors
-                local_key: erd.get_primary_key(source_entity_name).unwrap().clone(),
-                foreign_key: erd.get_primary_key(target_entity_name).unwrap().clone(),
-                relationship_type: RelationshipType::ManyToOne, // Default to ManyToOne if no relationship found
-            });
-    }
-    unreachable!() // No source found
 }

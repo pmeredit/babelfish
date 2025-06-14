@@ -135,7 +135,7 @@
            "relationshipType": "many-to-one",
            "description": "Links customers to their orders. Orders reference customers.",
            "constraint": {
-             "constraintType": "foreign",
+             "constraintType": "embedded",
              "targetPath": "orders",
              "db": "ecommerce_db",
              "collection": "orders",
@@ -313,25 +313,6 @@
     "primaryKey": "_id",
     "description": "Stores order information, embedding order items, shipping and billing addresses (as snapshots). References customer.",
     "relationships": {
-        "Customer": {
-            "relationshipType": "many-to-one",
-            "description": "Order belongs to a customer. This order references a customer.",
-            "constraint": {
-              "constraintType": "foreign",
-              "db": "ecommerce_db",
-              "collection": "customers",
-              "direction": "child",
-              "localKey": "customer_ref_id",
-              "foreignKey": "_id",
-              "projection": [
-                "original_customer_id",
-                "email",
-                "first_name",
-                "last_name"
-              ]
-            },
-           "consistency": "eventual"
-        },
         "ShippingAddress": {
             "relationshipType": "one-to-one",
             "description": "Order has a shipping address, embedded as a snapshot using the canonical Address structure.",
