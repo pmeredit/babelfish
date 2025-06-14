@@ -139,8 +139,10 @@ impl JoinGenerator {
                 while let Some(next) = nodes.next() {
                     let source_entity = tree.node_weight(current).unwrap();
                     let target_entity = tree.node_weight(next).unwrap();
+                    println!("{} -> {}", source_entity, target_entity);
                     let edge_data = erd_graph.get_edge_data(current, next)
                         .ok_or_else(|| Error::EntityMissingFromErd(format!("{} -> {}", source_entity, target_entity)))?;
+                    println!("Edge data: {:?}", edge_data);
                     match edge_data {
                         EdgeData::EmbeddedSource {..} => {
                             pipeline.push(self.generate_for_source(&target_entity)?);
@@ -195,7 +197,7 @@ impl JoinGenerator {
         }))
     }
 
-    fn generate_for_embedded(&self, parent_entity: &str,  embedded_entity: &str, target_path: &str) -> Result<Stage> {
+    fn generate_for_embedded(&self, parent_entity: &str, embedded_entity: &str, target_path: &str) -> Result<Stage> {
         let field = format!("{}.{}", parent_entity, target_path);
         Ok(Stage::SubPipeline(Pipeline {
             pipeline: vec![
@@ -216,7 +218,7 @@ impl JoinGenerator {
                 Stage::Lookup(Lookup::Equality(EqualityLookup {
                     from: LookupFrom::Collection(coll.to_string()),
                     local_field: format!("{}.{}", local_entity, local_key),
-                    foreign_field: format!("{}.{}", foreign_entity, foreign_key),
+                    foreign_field: foreign_key.to_string(),
                     as_var: foreign_entity.to_string(),
                 })),
                 Stage::Unwind(Unwind::FieldPath(Expression::Ref(Ref::FieldRef(

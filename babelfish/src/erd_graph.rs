@@ -1,7 +1,10 @@
 use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 use crate::erd::{ConstraintType, Erd, ErdRelationship, RelationshipType};
-use petgraph::{algo::steiner_tree, dot::Dot, graph::{NodeIndex, UnGraph}, prelude::StableUnGraph};
+use petgraph::{algo::{self, steiner_tree}, dot::Dot, graph::{DiGraph, NodeIndex, UnGraph}, prelude::StableUnGraph, visit::{EdgeRef, IntoEdgeReferences}};
+
+use petgraph::visit::NodeIndexable;
+
 
 pub struct ErdGraph {
     pub graph: UnGraph<String, usize>,
@@ -11,7 +14,6 @@ pub struct ErdGraph {
 
 pub struct SteinerTree<'a> {
     pub graph: StableUnGraph<String, usize>,
-    pub root: NodeIndex,
     pub node_indices: &'a HashMap<String, NodeIndex>,
     pub edge_data: &'a HashMap<NodeIndex, HashMap<NodeIndex, EdgeData>>,
 }
@@ -36,6 +38,16 @@ pub enum EdgeData {
         local_key: String,
         relationship_type: RelationshipType,
     },
+}
+
+impl EdgeData {
+    pub fn not_parent(&self, node_label: &str) -> bool {
+        match self {
+            EdgeData::EmbeddedSource { .. } => true,
+            EdgeData::Embedded { source_entity, .. } => source_entity != node_label,
+            EdgeData::Foreign { .. } => true,
+        }
+    }
 }
 
 impl ErdGraph {
@@ -76,32 +88,8 @@ impl ErdGraph {
             &self.graph,
             nodes.as_slice(),
         );
-        let mut root = NodeIndex::end();
-        for edge in graph.edge_indices() {
-            let (source, target) =  graph.edge_endpoints(edge).expect("Edge endpoints not found");
-            let edge_data = self.get_edge_data(source, target)
-                .expect("Edge data not found for steiner tree");
-            println!("Edge: {:?} -> {:?}, Data: {:?}", 
-                self.get_entity_name(source).unwrap(), 
-                self.get_entity_name(target).unwrap(), 
-                edge_data);
-            match edge_data {
-                EdgeData::EmbeddedSource { .. } | EdgeData::Foreign { .. } => {
-                    root = target;
-                    break;
-                }
-                _ => {}
-            }
-        }
-        if root == NodeIndex::end() {
-            println!("edge_data: {:?}", self.edge_data);
-        }
-
-        println!("Steiner tree root: {:?}", root);
-
         SteinerTree {
             graph,
-            root,
             node_indices: &self.node_indices,
             edge_data: &self.edge_data,
         }
@@ -133,30 +121,11 @@ impl SteinerTree<'_> {
 
     pub fn topological_sort(&self) -> Vec<NodeIndex> {
         let mut ret = Vec::new();
-        let mut visited = std::collections::HashSet::new();
-        self.topo_aux(self.root, &mut ret, &mut visited);  
-        println!("sorted nodes: {:?}", ret);
-        println!("Topological sort: {:?}", ret.iter().map(|n| self.get_entity_name(*n).unwrap()).collect::<Vec<_>>());
+        for node in self.graph.node_indices() {
+            println!("Node: {}", self.graph.node_weight(node).unwrap());
+            ret.push(node);
+        }
         ret
-    }
-
-    fn topo_aux(&self, node: NodeIndex, ret: &mut Vec<NodeIndex>, visited: &mut HashSet<NodeIndex>) {
-        if visited.contains(&node) {
-            return;
-        }
-        ret.push(node);
-        let mut worklist = Vec::new();
-        for neighbor in self.graph.neighbors(node) {
-            if visited.contains(&neighbor) {
-                continue;
-            }
-            ret.push(neighbor);
-            worklist.push(neighbor);
-            visited.insert(neighbor);
-        }
-        for neighbor in worklist {
-            self.topo_aux(neighbor, ret, visited);
-        }
     }
 
     pub fn node_weight(&self, node_index: NodeIndex) -> Option<&String> {
