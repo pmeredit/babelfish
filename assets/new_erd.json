@@ -200,7 +200,8 @@
   "Category": {
     "source": {
       "db": "ecommerce_db",
-      "collection": "categories"
+      "collection": "categories",
+      "targetPath": "nonsense_just_to_test_foreign_embedded_source"
     },
     "primaryKey": "_id",
     "description": "Stores product categories.",

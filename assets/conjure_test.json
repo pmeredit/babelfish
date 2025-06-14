@@ -3,7 +3,8 @@
         "Customer.last_name",
         "Order._id",
         "Order.total_amount",
-        "OrderItem.*"
+        "OrderItem.*",
+        "Category.*"
     ]},
     {"$match": {"$expr": {"$gte": ["$Customer.last_name", "fish"]}}},
     {"$sort": {"Order.total_amount": -1}},

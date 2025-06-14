@@ -742,7 +742,7 @@ mod stage_test {
     mod join {
         use crate::{
             definitions::{
-                Expression, FakeJoin, JoinType, LiteralValue, Join, JoinExpression, Pipeline,
+                Expression, FakeJoin, Join, JoinExpression, JoinType, LiteralValue, Pipeline,
                 ProjectItem, ProjectStage, Ref, Stage, UntaggedOperator, UntaggedOperatorName,
             },
             map,
@@ -755,10 +755,7 @@ mod stage_test {
                     Join::Entity("a".to_string(),),
                     Join::Entity("b".to_string()),
                     Join::Left(JoinExpression {
-                        args: vec![
-                            Join::Entity("c".to_string()),
-                            Join::Entity("d".to_string())
-                        ],
+                        args: vec![Join::Entity("c".to_string()), Join::Entity("d".to_string())],
                         condition: Some(Expression::UntaggedOperator(UntaggedOperator {
                             op: UntaggedOperatorName::Gt,
                             args: vec![

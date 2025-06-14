@@ -1,9 +1,9 @@
 use ast::{
     definitions::{
-        visitor::Visitor, Assemble, AssembleJoinType, Expression, Filter, Lookup, LookupFrom,
-        MatchExpr, MatchExpression, MatchStage, Pipeline, ProjectItem, ProjectStage, Ref, Stage,
-        Subassemble, SubqueryLookup, TaggedOperator, UntaggedOperator, UntaggedOperatorName,
-        Unwind, UnwindExpr,
+        Assemble, AssembleJoinType, Expression, Filter, Lookup, LookupFrom, MatchExpr,
+        MatchExpression, MatchStage, Pipeline, ProjectItem, ProjectStage, Ref, Stage, Subassemble,
+        SubqueryLookup, TaggedOperator, UntaggedOperator, UntaggedOperatorName, Unwind, UnwindExpr,
+        visitor::Visitor,
     },
     map,
 };
@@ -159,8 +159,10 @@ impl Visitor for AssembleRewrite {
         }
         match stage {
             Stage::Assemble(mut a) => {
-                let erd_json = handle_error!(std::fs::read_to_string(&a.erd)
-                    .map_err(|_| Error::CouldNotFindErd(a.erd.clone())));
+                let erd_json = handle_error!(
+                    std::fs::read_to_string(&a.erd)
+                        .map_err(|_| Error::CouldNotFindErd(a.erd.clone()))
+                );
                 let erd: Erd =
                     handle_error!(serde_json::from_str(&erd_json).map_err(Error::CouldNotParseErd));
                 let entities = erd.entities;

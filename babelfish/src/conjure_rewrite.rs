@@ -1,7 +1,5 @@
-use ast::{
-    definitions::{
-        visitor::Visitor, ProjectStage, JoinExpression, Pipeline, ProjectItem, Stage, Join,
-    },
+use ast::definitions::{
+    Join, JoinExpression, Pipeline, ProjectItem, ProjectStage, Stage, visitor::Visitor,
 };
 use linked_hash_map::LinkedHashMap;
 use thiserror::Error;
@@ -36,44 +34,41 @@ impl Visitor for ConjureRewrite {
     fn visit_stage(&mut self, stage: Stage) -> Stage {
         match stage {
             Stage::Conjure(ref v) => {
-                let (entites, project_stage) = v.into_iter().filter_map(|item| {
-                    let sp: Vec<_> = item.split('.').collect();
-                    if sp.len() < 2 {
-                        self.error = Some(Error::EntityNameMissing(item.to_string()));
-                        return None; // Skip this entity, as it is invalid
-                    }
-                    match sp[1] {
-                        "*" => {
-                            Some(((sp[0].to_string(), ()), (sp[0].to_string(), ProjectItem::Inclusion)))
+                let (entites, project_stage) = v
+                    .into_iter()
+                    .filter_map(|item| {
+                        let sp: Vec<_> = item.split('.').collect();
+                        if sp.len() < 2 {
+                            self.error = Some(Error::EntityNameMissing(item.to_string()));
+                            return None; // Skip this entity, as it is invalid
                         }
-                        _ => {
-                            Some(((sp[0].to_string(), ()), (item.to_string(), ProjectItem::Inclusion)))
+                        match sp[1] {
+                            "*" => Some((
+                                (sp[0].to_string(), ()),
+                                (sp[0].to_string(), ProjectItem::Inclusion),
+                            )),
+                            _ => Some((
+                                (sp[0].to_string(), ()),
+                                (item.to_string(), ProjectItem::Inclusion),
+                            )),
                         }
-                    }
-                }).collect::<(LinkedHashMap<_,_>, LinkedHashMap<_,_>)>();
+                    })
+                    .collect::<(LinkedHashMap<_, _>, LinkedHashMap<_, _>)>();
                 if entites.is_empty() {
                     if self.error.is_none() {
                         self.error = Some(Error::NoEntitiesFound);
                     }
                     return Stage::Sentinel; // return anything, this is an Error case
                 }
-                Stage::SubPipeline( Pipeline {
+                Stage::SubPipeline(Pipeline {
                     pipeline: vec![
-                        Stage::Join (
-                            Box::new(
-                                Join::Inner(
-                                    JoinExpression {
-                                        args: entites.into_iter().map(|(e, _)| Join::Entity(e)).collect(),
-                                        condition: None,
-                                    }
-                                )
-                            )
-                        ),
-                        Stage::Project(
-                            ProjectStage {
-                                items: project_stage,
-                            }
-                        ),
+                        Stage::Join(Box::new(Join::Inner(JoinExpression {
+                            args: entites.into_iter().map(|(e, _)| Join::Entity(e)).collect(),
+                            condition: None,
+                        }))),
+                        Stage::Project(ProjectStage {
+                            items: project_stage,
+                        }),
                     ],
                 })
             }

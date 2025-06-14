@@ -1,7 +1,7 @@
 use ast::{
     definitions::{
-        visitor::Visitor, Expression, LiteralValue, Lookup, MatchExpr, MatchExpression, MatchStage,
-        Pipeline, Stage, UntaggedOperator, UntaggedOperatorName,
+        Expression, LiteralValue, Lookup, MatchExpr, MatchExpression, MatchStage, Pipeline, Stage,
+        UntaggedOperator, UntaggedOperatorName, visitor::Visitor,
     },
     set,
 };

@@ -7,9 +7,9 @@ pub struct Erd(HashMap<String, ErdItem>);
 
 impl Erd {
     pub fn get_relationship(&self, entity: &str, foreign_entity: &str) -> Option<&ErdRelationship> {
-        self.0.get(entity).and_then(|item| {
-            item.relationships.get(foreign_entity)
-        })
+        self.0
+            .get(entity)
+            .and_then(|item| item.relationships.get(foreign_entity))
     }
 
     pub fn get_primary_key(&self, entity: &str) -> Option<&String> {

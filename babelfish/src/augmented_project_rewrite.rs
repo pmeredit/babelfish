@@ -1,7 +1,5 @@
-use ast::{
-    definitions::{
-        visitor::Visitor, Expression, JoinExpression, Pipeline, ProjectItem, Ref, Stage, Join,
-    },
+use ast::definitions::{
+    Expression, Join, JoinExpression, Pipeline, ProjectItem, Ref, Stage, visitor::Visitor,
 };
 use linked_hash_map::LinkedHashMap;
 use thiserror::Error;
@@ -34,42 +32,41 @@ impl Visitor for AugmentedProjectRewrite {
     fn visit_stage(&mut self, mut stage: Stage) -> Stage {
         match stage {
             Stage::Project(ref mut p) => {
-                let entites = p.items.iter_mut().filter_map(|(name, item)| {
-                    if let ProjectItem::Assignment(Expression::Ref(Ref::VariableRef(v))) = item {
-                        if v == "E" {
-                            let split = name.split('.').collect::<Vec<_>>();
-                            if split.len() < 2 {
-                                self.error = Some(Error::EntityNameMissing(v.to_string()));
-                                return None;
+                let entites = p
+                    .items
+                    .iter_mut()
+                    .filter_map(|(name, item)| {
+                        if let ProjectItem::Assignment(Expression::Ref(Ref::VariableRef(v))) = item
+                        {
+                            if v == "E" {
+                                let split = name.split('.').collect::<Vec<_>>();
+                                if split.len() < 2 {
+                                    self.error = Some(Error::EntityNameMissing(v.to_string()));
+                                    return None;
+                                }
+                                *item = ProjectItem::Inclusion;
+                                Some((split[0].to_string(), ()))
+                            } else if v == "E*" {
+                                *item = ProjectItem::Inclusion;
+                                Some((name.to_string(), ()))
+                            } else {
+                                None
                             }
-                            *item = ProjectItem::Inclusion;
-                            Some((split[0].to_string(), ()))
-                        } else if v == "E*" {
-                            *item = ProjectItem::Inclusion;
-                            Some((name.to_string(), ()))
                         } else {
                             None
                         }
-                    } else {
-                        None
-                    }
-                }).collect::<LinkedHashMap<_, _>>();
+                    })
+                    .collect::<LinkedHashMap<_, _>>();
                 if entites.is_empty() {
                     return stage; // No entities found, return the original stage
                 }
-                Stage::SubPipeline( Pipeline {
+                Stage::SubPipeline(Pipeline {
                     pipeline: vec![
-                        Stage::Join (
-                            Box::new(
-                                Join::Inner(
-                                    JoinExpression {
-                                        args: entites.into_iter().map(|(e, _)| Join::Entity(e)).collect(),
-                                        condition: None,
-                                    }
-                                )
-                            )
-                        ),
-                        stage
+                        Stage::Join(Box::new(Join::Inner(JoinExpression {
+                            args: entites.into_iter().map(|(e, _)| Join::Entity(e)).collect(),
+                            condition: None,
+                        }))),
+                        stage,
                     ],
                 })
             }
