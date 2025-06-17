@@ -1,11 +1,9 @@
 [
     {"$conjure": [
-        "Customer.last_name",
-        "Order._id",
-        "Order.total_amount",
-        "OrderItem.*",
-        "Category.*"
+        {"Customer": "a"},
+        {"Customer": "b"}
     ]},
+    {"$select": ["Customer.*", "Customer.last_name"]},
     {"$match": {"$expr": {"$gte": ["$Customer.last_name", "fish"]}}},
     {"$sort": {"Order.total_amount": -1}},
     {"$limit": 10},
