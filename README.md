@@ -4,7 +4,9 @@ A Rust-based tool for generating MongoDB aggregation pipelines that perform inte
 
 ## Overview
 
-The babelfish project introduces the $join pipeline stage to bridge the gap between normalized entity-relationship data models and MongoDB's document-oriented storage. It provides a declarative way to:
+Babelfish introduces two new stages to MongoDB aggregation: `$conjure` and `$join`. These stages abstract storage from the logical notion of entities in the database, allowing for queries that will continue to function as the storage model of the data evolves over time.
+
+The babelfish project bridges the gap between normalized entity-relationship data models and MongoDB's document-oriented storage. It provides a declarative way to:
 
 1. Define entity relationships and storage constraints in an ERD (Entity Relationship Diagram)
 2. Generate physical MongoDB documents based on those constraints
@@ -42,8 +44,8 @@ The core of the system is the schema definition (new_schema.json), which contain
 
 The schema now uses MongoDB's JSON Schema format, providing better integration with MongoDB's validation capabilities.
 
-# Note: The system now uses the $join operator with the ERD format specified in assets/new_erd.json.
-The $join operator provides a more intuitive and powerful way to express multi-entity queries.
+# Note: The $assemble operator has been deprecated and replaced with $conjure and $join operators.
+The new operators provide more intuitive and powerful ways to express multi-entity queries with the ERD format specified in assets/new_erd.json.
 
 ### Storage Constraint Types
 
@@ -224,6 +226,56 @@ This example performs an inner join across three related entities (Customer → 
 
 ## Advanced Features
 
+### The $conjure Stage
+
+The `$conjure` stage provides a simplified syntax for performing inner joins with field projections. It abstracts away the complexity of writing explicit join and projection stages.
+
+#### Syntax
+
+```json
+{
+  "$conjure": ["Entity1.field1", "Entity2.field2", "Entity3.*"]
+}
+```
+
+#### Features
+
+- **Specific Field Selection**: Use `"Entity.fieldName"` to select specific fields
+- **Wildcard Selection**: Use `"Entity.*"` to select all fields from an entity
+- **Automatic Join Generation**: The system automatically determines the join path based on entity relationships
+- **Simplified Syntax**: Reduces boilerplate for common join patterns
+
+#### Example
+
+Instead of writing:
+```json
+[
+  {
+    "$join": {
+      "$inner": {
+        "args": ["Customer", "Order", "OrderItem"]
+      }
+    }
+  },
+  {
+    "$project": {
+      "Customer.customerName": 1,
+      "Customer.customerAddress": 1,
+      "OrderItem": 1
+    }
+  }
+]
+```
+
+You can simply write:
+```json
+{
+  "$conjure": ["Customer.customerName", "Customer.customerAddress", "OrderItem.*"]
+}
+```
+
+The `$conjure` stage internally generates the appropriate `$join` and `$project` stages, making it ideal for straightforward inner join queries where you need specific fields from multiple entities.
+
 ### Simplified Inner Joins with $project and $filter
 
 For simple inner join queries, you can use `$project` with `$$E` annotations instead of explicit `$join` operations. This provides a more concise syntax when you only need inner joins:
@@ -373,3 +425,66 @@ The `$join` operator can be used as part of a larger MongoDB aggregation pipelin
 ```
 
 This enables combining the join capabilities with MongoDB's rich aggregation framework.
+
+## Migration from $assemble
+
+The `$assemble` operator has been deprecated in favor of two new, more specialized operators:
+
+### 1. Use `$conjure` for Simple Field Projections
+
+If you were using `$assemble` to join entities and project specific fields, migrate to `$conjure`:
+
+**Old $assemble syntax:**
+```json
+{
+  "$assemble": {
+    "entities": ["Customer", "Order"],
+    "fields": ["Customer.name", "Order.total"]
+  }
+}
+```
+
+**New $conjure syntax:**
+```json
+{
+  "$conjure": ["Customer.name", "Order.total"]
+}
+```
+
+### 2. Use `$join` for Complex Joins with Conditions
+
+If you were using `$assemble` with join conditions or need left joins, migrate to `$join`:
+
+**Old $assemble syntax:**
+```json
+{
+  "$assemble": {
+    "type": "inner",
+    "entities": ["Customer", "Order"],
+    "condition": {"$gt": ["$Order.amount", 100]}
+  }
+}
+```
+
+**New $join syntax:**
+```json
+{
+  "$join": {
+    "$inner": {
+      "args": ["Customer", "Order"],
+      "condition": {"$gt": ["$Order.amount", 100]}
+    }
+  }
+}
+```
+
+### Key Differences
+
+1. **Clearer Intent**: `$conjure` is for simple projections, `$join` is for complex join operations
+2. **Better Performance**: The new operators generate more optimized pipelines
+3. **Enhanced Flexibility**: `$join` supports multiple join types (inner, left) with full MongoDB expression support
+4. **Simplified Syntax**: `$conjure` reduces boilerplate for common use cases
+
+### Backward Compatibility
+
+While `$assemble` is deprecated, it may still be supported for backward compatibility. However, we strongly recommend migrating to the new operators for better performance and maintainability.
