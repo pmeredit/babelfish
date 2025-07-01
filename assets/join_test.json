@@ -2,7 +2,12 @@
     {"$join":
         {"$inner": {
             "root": "Customer",
-            "args": ["Order", "OrderItem"],
+            "args": [
+                "Order", 
+                {"$inner": {
+                    "args": ["OrderItem"]
+                }}
+            ],
             "condition": {"$gt": ["$Order.total_amount", 500]}
         }}
     },

@@ -47,6 +47,8 @@ pub enum Error {
     NoEntities,
     #[error("Top level join must have root")]
     NoRoot,
+    #[error("Root in subjoin is not allowed")]
+    RootInSubjoin,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -216,13 +218,44 @@ impl JoinGenerator {
             .get_index(root_entity)
             .ok_or_else(|| Error::EntityMissingFromErd(root_entity.to_string()))?;
             for arg in args {
-                if let Join::Entity(entity) = arg {
-                    self.generate_for_entity(
-                        root_entity.to_string(),
+                match arg {
+                    Join::Entity(entity) => {
+                        self.generate_for_entity(
+                            root_entity.to_string(),
+                            root,
+                            entity.as_str(),
+                        )?
+                    }
+                    Join::Inner(JoinExpression {
                         root,
-                        entity.as_str(),
-                    )?;
-                    continue;
+                        args,
+                        condition,
+                    }) => {
+                        if root.is_some() {
+                            return Err(Error::RootInSubjoin);
+                        }
+                        self.generate_join_aux(
+                            false,
+                            root_entity,
+                            args,
+                            condition.clone(),
+                        )?;
+                    }
+                    Join::Left(JoinExpression {
+                        root,
+                        args,
+                        condition,
+                    }) => {
+                        if root.is_some() {
+                            return Err(Error::RootInSubjoin);
+                        }
+                        self.generate_join_aux(
+                            true,
+                            root_entity,
+                            args,
+                            condition.clone(),
+                        )?;
+                    }
                 }
             }
             if let Some(condition) = condition {
