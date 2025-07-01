@@ -4,7 +4,7 @@
             "root": "Customer",
             "args": [
                 "Order", 
-                {"$inner": {
+                {"$left": {
                     "args": ["OrderItem"]
                 }}
             ],

@@ -566,7 +566,9 @@ pub enum Unwind {
 pub struct UnwindExpr {
     // TODO: make this a Ref
     pub path: Box<Expression>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub include_array_index: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub preserve_null_and_empty_arrays: Option<bool>,
 }
 

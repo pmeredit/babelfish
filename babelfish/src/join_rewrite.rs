@@ -1,9 +1,7 @@
 use crate::{erd::Erd, erd_graph::{self, EdgeData, ErdGraph}};
 use ast::{
     definitions::{
-        EqualityLookup, Expression, Join, JoinExpression, Lookup, LookupFrom, MatchExpr,
-        MatchExpression, MatchStage, Pipeline, ProjectItem, ProjectStage, Ref, Stage, Unwind,
-        visitor::Visitor,
+        visitor::Visitor, EqualityLookup, Expression, Join, JoinExpression, Lookup, LookupFrom, MatchExpr, MatchExpression, MatchStage, Pipeline, ProjectItem, ProjectStage, Ref, Stage, Unwind, UnwindExpr
     },
     map,
 };
@@ -49,6 +47,8 @@ pub enum Error {
     NoRoot,
     #[error("Root in subjoin is not allowed")]
     RootInSubjoin,
+    #[error("Relationship missing between {0} and {1}")]
+    RelationshipMissingBetween(String, String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -141,6 +141,7 @@ impl JoinGenerator {
 
     fn generate_for_entity(
         &mut self,
+        is_left: bool,
         root_entity: String,
         root: NodeIndex,
         entity: &str,
@@ -175,6 +176,7 @@ impl JoinGenerator {
                       relationship_type: _,
                   }) => {
                       self.pipeline.push(self.generate_for_embedded(
+                              is_left,
                        source_entity,
                       self.erd_graph.get_entity_name(target_index).unwrap(),
                           &target_path,
@@ -188,6 +190,7 @@ impl JoinGenerator {
                       relationship_type: _,
                   }) => {
                       self.pipeline.push(self.generate_for_foreign(
+                              is_left,
                       self.erd_graph.get_entity_name(current_index).unwrap(),
                       self.erd_graph.get_entity_name(target_index).unwrap(),
                           &collection,
@@ -197,10 +200,11 @@ impl JoinGenerator {
                   }
                   // This should actually be impossible since we shouldn't be able to
                   // find a path to this entity.
-                  None => self.pipeline.push(self.generate_for_foreign_source(
-                  self.erd_graph.get_entity_name(root).unwrap(),
-                  self.erd_graph.get_entity_name(target_index).unwrap(),
-                  )?),
+                  None => 
+                      Err(Error::RelationshipMissingBetween(
+                          self.erd_graph.get_entity_name(current_index).unwrap().to_string(),
+                          self.erd_graph.get_entity_name(target_index).unwrap().to_string(),
+                      ))?,
               }
               current_index = target_index;
           }
@@ -221,6 +225,7 @@ impl JoinGenerator {
                 match arg {
                     Join::Entity(entity) => {
                         self.generate_for_entity(
+                            is_left,
                             root_entity.to_string(),
                             root,
                             entity.as_str(),
@@ -375,6 +380,7 @@ impl JoinGenerator {
 
     fn generate_for_embedded(
         &self,
+        is_left: bool,
         parent_entity: &str,
         embedded_entity: &str,
         target_path: &str,
@@ -382,9 +388,13 @@ impl JoinGenerator {
         let field = format!("{}.{}", parent_entity, target_path);
         Ok(Stage::SubPipeline(Pipeline {
             pipeline: vec![
-                Stage::Unwind(Unwind::FieldPath(Expression::Ref(Ref::FieldRef(
-                    field.clone(),
-                )))),
+                Stage::Unwind(Unwind::Document(
+                        UnwindExpr {
+                            path: Box::new(Expression::Ref(Ref::FieldRef(field.clone()))),
+                            include_array_index: None,
+                            preserve_null_and_empty_arrays: Some(is_left),
+                        }
+                )),
                 Stage::AddFields(map! {
                     embedded_entity.to_string() => Expression::Ref(Ref::FieldRef(field)),
                 }),
@@ -394,6 +404,7 @@ impl JoinGenerator {
 
     fn generate_for_foreign(
         &self,
+        is_left: bool,
         local_entity: &str,
         foreign_entity: &str,
         coll: &str,
@@ -408,179 +419,14 @@ impl JoinGenerator {
                     foreign_field: foreign_key.to_string(),
                     as_var: foreign_entity.to_string(),
                 })),
-                Stage::Unwind(Unwind::FieldPath(Expression::Ref(Ref::FieldRef(
-                    foreign_entity.to_string(),
-                )))),
+                Stage::Unwind(Unwind::Document(
+                        UnwindExpr {
+                            path: Box::new(Expression::Ref(Ref::FieldRef(foreign_entity.to_string()))),
+                            include_array_index: None,
+                            preserve_null_and_empty_arrays: Some(is_left),
+                        }
+                )),
             ],
         }))
     }
-
-
-//    fn generate_lookup_pipeline(
-//        &mut self,
-//        subassemble: Subassemble,
-//        constraint: Constraint,
-//    ) -> Result<Vec<Stage>> {
-//        // replace parent entity fieldRefs with variableRefs. These can be potentially
-//        // optimized out with movement, but they may not be if a given conjunctive
-//        // subexpression also uses the child entity
-//        let mut lookup_pipeline = vec![Stage::Project(ProjectStage {
-//            items: map! {
-//                subassemble.entity.to_string() => ProjectItem::Assignment(Expression::Ref(Ref::VariableRef("ROOT".to_string()))),
-//                "_id".to_string() => ProjectItem::Exclusion,
-//            },
-//        })];
-//        let theta = self.variables.clone();
-//        if let Some(filter) = subassemble.filter {
-//            lookup_pipeline.push(Stage::Match(MatchStage {
-//                expr: vec![MatchExpression::Expr(MatchExpr {
-//                    expr: Box::new(Expression::UntaggedOperator(UntaggedOperator {
-//                        op: UntaggedOperatorName::And,
-//                        args: vec![
-//                            filter.substitute(theta.clone()),
-//                            constraint.filter.substitute(theta),
-//                        ],
-//                    })),
-//                })],
-//                numbering: None,
-//            }));
-//        } else {
-//            lookup_pipeline.push(Stage::Match(MatchStage {
-//                expr: vec![MatchExpression::Expr(MatchExpr {
-//                    expr: Box::new(constraint.filter.substitute(theta)),
-//                })],
-//                numbering: None,
-//            }));
-//        }
-//        // add recursive sub assemblies
-//        let parent_entity = subassemble.entity.to_string();
-//        for subassemble in subassemble.subassemble.into_iter().flatten() {
-//            lookup_pipeline.push(self.generate_subassemble(parent_entity.as_str(), subassemble)?)
-//        }
-//        Ok(lookup_pipeline)
-//    }
-//
-//    fn handle_reference_constraint(
-//        &mut self,
-//        parent_entity: &str,
-//        subassemble: Subassemble,
-//        constraint: Constraint,
-//    ) -> Result<Stage> {
-//        let mut pipeline = Vec::new();
-//        // all of the grandparent_entities are in scope as variables, the parent entity
-//        // is in scope as a field
-//        let entity_name = subassemble.entity.to_string();
-//        let join_type = subassemble.join.unwrap_or(AssembleJoinType::Inner);
-//        let subassemble_entity = self
-//            .entities
-//            .get(subassemble.entity.as_str())
-//            .ok_or(Error::EntityMissingFromErd(subassemble.entity.clone()))?;
-//        let collection = subassemble_entity.collection.clone();
-//        self.variables.insert(
-//            parent_entity.to_string(),
-//            Expression::Ref(Ref::VariableRef(parent_entity.to_string())),
-//        );
-//        let lookup_pipeline = self.generate_lookup_pipeline(subassemble, constraint)?;
-//        // restore the variables after the pipeline is generated
-//        self.variables.remove(parent_entity);
-//        pipeline.push(Stage::Lookup(Lookup::Subquery(SubqueryLookup {
-//        from: Some(LookupFrom::Collection(collection)),
-//        let_body: Some(map! {parent_entity.to_string() => Expression::Ref(Ref::FieldRef(parent_entity.to_string()))}),
-//        pipeline: Pipeline {
-//            pipeline: lookup_pipeline,
-//        },
-//        as_var: entity_name.clone(),
-//        is_left_join: Some(join_type == AssembleJoinType::Left),
-//    })));
-//        pipeline.push(
-//                Stage::Project(
-//                    ProjectStage {
-//                        items: map! {
-//                            entity_name.clone() => ProjectItem::Assignment(Expression::Ref(Ref::FieldRef(format!("{}.{}", entity_name, entity_name)))),
-//                        }
-//                    }
-//                )
-//            );
-//        pipeline.push(Stage::Unwind(Unwind::Document(UnwindExpr {
-//            path: Box::new(Expression::Ref(Ref::FieldRef(entity_name.to_string()))),
-//            preserve_null_and_empty_arrays: Some(join_type == AssembleJoinType::Left),
-//            include_array_index: None,
-//        })));
-//        Ok(Stage::SubPipeline(Pipeline { pipeline }))
-//    }
-//
-//    fn handle_embedded_constraint(
-//        &mut self,
-//        parent_entity: &str,
-//        subassemble: Subassemble,
-//        constraint: Constraint,
-//    ) -> Result<Stage> {
-//        let mut pipeline = Vec::new();
-//        let target_path = constraint
-//            .target_path
-//            .as_ref()
-//            .ok_or_else(|| Error::MissingTargetPathInEmbedded(print_json!(&constraint)))?;
-//        let target_ref = Expression::Ref(Ref::FieldRef(
-//            format!("{}.{}", parent_entity, target_path).to_string(),
-//        ));
-//        // left join many-one
-//        if subassemble.join == Some(AssembleJoinType::Left)
-//            && constraint.relationship_type == RelationshipType::Many
-//        {
-//            if let Some(filter) = subassemble.filter {
-//                pipeline.push(Stage::Project(ProjectStage {
-//                    items: map! {
-//                        subassemble.entity.clone() => ProjectItem::Assignment(
-//                            Expression::TaggedOperator(TaggedOperator::Filter(
-//                                    Filter {
-//                                        input: Box::new(target_ref.clone()),
-//                                        cond: Box::new(filter.substitute(map! {
-//                                            subassemble.entity.clone() => Expression::Ref(Ref::VariableRef("this".to_string())),
-//                                        })),
-//                                        _as: None,
-//                                        limit: None,
-//                                    }
-//
-//                            )
-//                        )),
-//                        "_id".to_string() => ProjectItem::Exclusion,
-//                    },
-//                }));
-//                pipeline.push(Stage::Unwind(Unwind::Document(UnwindExpr {
-//                    path: Box::new(Expression::Ref(Ref::FieldRef(subassemble.entity.clone()))),
-//                    preserve_null_and_empty_arrays: Some(true),
-//                    include_array_index: None,
-//                })));
-//            }
-//        // inner join or left one-to-one
-//        } else {
-//            if constraint.relationship_type == RelationshipType::Many {
-//                pipeline.push(Stage::Unwind(Unwind::Document(UnwindExpr {
-//                    path: Box::new(target_ref.clone()),
-//                    preserve_null_and_empty_arrays: None,
-//                    include_array_index: None,
-//                })));
-//            }
-//            pipeline.push(Stage::Project(ProjectStage {
-//                items: map! {
-//                    subassemble.entity.clone() => ProjectItem::Assignment(target_ref),
-//                    "_id".to_string() => ProjectItem::Exclusion,
-//                },
-//            }));
-//            if let Some(filter) = subassemble.filter {
-//                pipeline.push(Stage::Match(MatchStage {
-//                    expr: vec![MatchExpression::Expr(MatchExpr {
-//                        expr: Box::new(filter.clone()),
-//                    })],
-//                    numbering: None,
-//                }));
-//            }
-//        }
-//        // add recursive sub assemblies
-//        let parent_entity = subassemble.entity.to_string();
-//        for subassemble in subassemble.subassemble.into_iter().flatten() {
-//            pipeline.push(self.generate_subassemble(parent_entity.as_str(), subassemble)?)
-//        }
-//        Ok(Stage::SubPipeline(Pipeline { pipeline }))
-//    }
 }
