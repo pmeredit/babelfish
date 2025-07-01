@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 // manager.
 
 visitgen::generate_visitors! {
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize, Default)]
 #[serde(transparent)]
 pub struct Pipeline {
     pub pipeline: Vec<Stage>,
@@ -527,6 +527,8 @@ pub enum Join {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct JoinExpression {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub root: Option<String>,
     pub args: Vec<Join>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub condition: Option<Expression>,

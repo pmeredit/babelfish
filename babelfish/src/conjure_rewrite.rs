@@ -60,10 +60,17 @@ impl Visitor for ConjureRewrite {
                     }
                     return Stage::Sentinel; // return anything, this is an Error case
                 }
+                let root = entites.keys().next().cloned().unwrap();
+                let args = entites
+                    .keys()
+                    .skip(1)
+                    .map(|e| Join::Entity(e.clone()))
+                    .collect::<Vec<_>>();
                 Stage::SubPipeline(Pipeline {
                     pipeline: vec![
                         Stage::Join(Box::new(Join::Inner(JoinExpression {
-                            args: entites.into_iter().map(|(e, _)| Join::Entity(e)).collect(),
+                            root: Some(root),
+                            args,
                             condition: None,
                         }))),
                         Stage::Project(ProjectStage {
