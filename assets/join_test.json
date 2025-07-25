@@ -3,7 +3,12 @@
         {"$inner": {
             "root": "Customer",
             "args": [
-                "Order", 
+                {"$derived": {
+                    "entity": "Order",
+                    "pipeline": [
+                        {"$lookup": {"from": "orders", "localField": "customer_id", "foreignField": "_id", "as": "Customer.orders"}}
+                    ]
+                }},
                 {"$left": {
                     "args": ["OrderItem"]
                 }}

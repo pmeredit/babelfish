@@ -521,8 +521,16 @@ pub enum Join {
     Inner(JoinExpression),
     #[serde(rename = "$left")]
     Left(JoinExpression),
+    #[serde(rename = "$derived")]
+    Derived(Derived),
     #[serde(untagged)]
     Entity(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Derived {
+    pub entity: String,
+    pub pipeline: Pipeline,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

@@ -46,6 +46,40 @@ macro_rules! test_serde_expr {
     };
 }
 
+#[test]
+fn test_derived() {
+    use crate::{map, definitions::{Derived, Join, Pipeline, MatchExpression, MatchField, MatchStage, ProjectStage, Ref, Stage, MatchBinaryOp, ProjectItem, Expression}};
+    let e: Join = serde_yaml::from_str(r#"
+    {"$derived": {
+            "entity": "Foo",
+            "pipeline": [
+                {"$match": {"a": 1}},
+                {"$project": {"_id": 0, "b": "$b"}}
+            ],
+        }
+    }"#).unwrap();
+    assert_eq!(
+        Join::Derived( 
+            Derived {
+                entity: "Foo".to_string(),
+                pipeline: Pipeline {
+                    pipeline: vec![
+                    Stage::Match(MatchStage {
+                        numbering: None,
+                        expr: vec![MatchExpression::Field(MatchField {
+                            field: Ref::FieldRef("a".to_string()),
+                            ops: map! { MatchBinaryOp::Eq => bson::Bson::Int32(1) }
+                        })],
+                    }),
+                    Stage::Project(ProjectStage {
+                        items: map! { "_id".to_string() => ProjectItem::Exclusion, "b".to_string() => ProjectItem::Assignment(Expression::Ref(Ref::FieldRef("b".to_string()))) }
+                    }),
+                ]},
+            }),
+        e
+    );
+}
+
 macro_rules! test_match_bin_op {
     ($func_name:ident, string_op = $string_op:expr, expected_op = $expected_op:expr) => {
         test_serde_stage!(
@@ -749,12 +783,14 @@ mod stage_test {
         };
 
         test_serde_stage!(
-            natty_join,
+            babel_join,
             expected = Stage::Join(Box::new(Join::Inner(JoinExpression {
+                root: Some("z".to_string()),
                 args: vec![
                     Join::Entity("a".to_string(),),
                     Join::Entity("b".to_string()),
                     Join::Left(JoinExpression {
+                        root: None,
                         args: vec![Join::Entity("c".to_string()), Join::Entity("d".to_string())],
                         condition: Some(Expression::UntaggedOperator(UntaggedOperator {
                             op: UntaggedOperatorName::Gt,
@@ -767,7 +803,7 @@ mod stage_test {
                 ],
                 condition: None
             }))),
-            input = r#"stage: {"$nattyJoin": {"$inner": {"args": ["a", "b", {"$left": {"args": ["c", "d"], "condition": {"$gt": ["$c.bar", "$d.bar"]}}}]}}}"#
+            input = r#"stage: {"$join": {"$inner": {"root": "z", "args": ["a", "b", {"$left": {"args": ["c", "d"], "condition": {"$gt": ["$c.bar", "$d.bar"]}}}]}}}"#
         );
 
         test_serde_stage!(

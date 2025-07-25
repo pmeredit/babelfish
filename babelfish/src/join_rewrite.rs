@@ -1,7 +1,7 @@
 use crate::{erd::Erd, erd_graph::{self, EdgeData, ErdGraph}};
 use ast::{
     definitions::{
-        visitor::Visitor, EqualityLookup, Expression, Join, JoinExpression, Lookup, LookupFrom, MatchExpr, MatchExpression, MatchStage, Pipeline, ProjectItem, ProjectStage, Ref, Stage, Unwind, UnwindExpr
+        visitor::Visitor, Derived, EqualityLookup, Expression, Join, JoinExpression, Lookup, LookupFrom, MatchExpr, MatchExpression, MatchStage, Pipeline, ProjectItem, ProjectStage, Ref, Stage, Unwind, UnwindExpr
     },
     map,
 };
@@ -49,6 +49,10 @@ pub enum Error {
     RootInSubjoin,
     #[error("Relationship missing between {0} and {1}")]
     RelationshipMissingBetween(String, String),
+    #[error("Derived entity {0} already in scope")]
+    DerivedEntityAlreadyInScope(String),
+    #[error("No path to entity: {0}")]
+    NoPathToEntity(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -139,10 +143,86 @@ impl JoinGenerator {
         }
     }
 
+    fn generate_for_derived(
+        &mut self,
+        is_left: bool,
+        root: NodeIndex,
+        derived: &Derived,
+    ) -> Result<()> {
+        let entity = &derived.entity;
+        let entity_index = self.erd_graph
+            .get_index(entity)
+            .ok_or_else(|| Error::EntityMissingFromErd(entity.to_string()))?;
+        if self.nodes_in_scope.contains(&entity_index) {
+            // already in scope, this will be an error, derived entities must be unique in scope.
+            return Err(Error::DerivedEntityAlreadyInScope(entity.to_string()));
+        }
+        let Some(path) = self.erd_graph.path_to(root, entity_index) else {
+            return Err(Error::NoPathToEntity(entity.to_string()));
+        };
+        let mut current_index = root;
+        for target_index in path.into_iter() {
+            if self.nodes_in_scope.contains(&target_index) {
+                current_index = target_index;
+                continue;
+            }
+            self.nodes_in_scope.insert(target_index);
+            let edge_data = self.erd_graph.get_edge_data(current_index, target_index);
+            match edge_data {
+                Some(EdgeData::Embedded {
+                    source_entity,
+                    target_path,
+                    relationship_type: _,
+                }) => {
+                    if target_index == entity_index {
+                        let pipeline = derived.pipeline.pipeline.clone();
+                        // If the entity is the current entity, we prefix in the pipeline
+                        self.pipeline.push(Stage::SubPipeline(Pipeline {pipeline}));
+                    }
+                    self.pipeline.push(self.generate_for_embedded(
+                            is_left,
+                     source_entity,
+                    self.erd_graph.get_entity_name(target_index).unwrap(),
+                        &target_path,
+                    )?);
+                }
+                Some(EdgeData::Foreign {
+                    db: _,
+                    collection,
+                    foreign_key,
+                    local_key,
+                    relationship_type: _,
+                }) => {
+                    if target_index == entity_index {
+                        let pipeline = derived.pipeline.pipeline.clone();
+                        // If the entity is the current entity, we prefix in the pipeline
+                        self.pipeline.push(Stage::SubPipeline(Pipeline {pipeline}));
+                    }
+                    self.pipeline.push(self.generate_for_foreign(
+                            is_left,
+                    self.erd_graph.get_entity_name(current_index).unwrap(),
+                    self.erd_graph.get_entity_name(target_index).unwrap(),
+                        &collection,
+                        &local_key,
+                        &foreign_key,
+                    )?);
+                }
+                // This should actually be impossible since we shouldn't be able to
+                // find a path to this entity.
+                None => 
+                    Err(Error::RelationshipMissingBetween(
+                        self.erd_graph.get_entity_name(current_index).unwrap().to_string(),
+                        self.erd_graph.get_entity_name(target_index).unwrap().to_string(),
+                    ))?,
+            }
+            current_index = target_index;
+        }
+        Ok(())
+    }
+
     fn generate_for_entity(
         &mut self,
         is_left: bool,
-        root_entity: String,
         root: NodeIndex,
         entity: &str,
     ) -> Result<()> {
@@ -155,11 +235,7 @@ impl JoinGenerator {
               return Ok(());
           }
           let Some(path) = self.erd_graph.path_to(root, entity_index) else {
-              self.pipeline.push(self.generate_for_foreign_source(
-                  &root_entity,
-                  self.erd_graph.get_entity_name(entity_index).unwrap(),
-              )?);
-              return Ok(());
+              return Err(Error::NoPathToEntity(entity.to_string()));
           };
           let mut current_index = root;
           for target_index in path.into_iter() {
@@ -226,10 +302,16 @@ impl JoinGenerator {
                     Join::Entity(entity) => {
                         self.generate_for_entity(
                             is_left,
-                            root_entity.to_string(),
                             root,
                             entity.as_str(),
                         )?
+                    }
+                    Join::Derived(derived) => {
+                        self.generate_for_derived(
+                            is_left,
+                            root,
+                            derived,
+                        )?;
                     }
                     Join::Inner(JoinExpression {
                         root,
