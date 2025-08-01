@@ -1,4 +1,4 @@
-use crate::erd::{ConstraintType, Erd, ErdRelationship, RelationshipType};
+use crate::erd::{ConstraintType, Erd, ErdRelationship, RelationshipType, Relationships, Source};
 use petgraph::{
     algo,
     dot::Dot,
@@ -29,14 +29,78 @@ pub enum EdgeData {
     },
 }
 
+// TODO: remove this trait once we settle on an ERD format
+pub trait GetErdData {
+    fn get_relationship(
+        &self,
+        source_entity_name: &str,
+        target_entity_name: &str,
+    ) -> Option<&ErdRelationship>;
+
+    fn get_source(&self, entity_name: &str) -> Option<&Source>;
+
+    fn iter(&self) -> impl Iterator<Item = &String>;
+
+    fn size(&self) -> usize;
+}
+
+impl GetErdData for Erd {
+    fn get_relationship(
+        &self,
+        source_entity_name: &str,
+        target_entity_name: &str,
+    ) -> Option<&ErdRelationship> {
+        self.get_relationship(source_entity_name, target_entity_name)
+    }
+
+    fn get_source(&self, entity_name: &str) -> Option<&Source> {
+        self.get_source(entity_name)
+    }
+
+    fn iter(&self) -> impl Iterator<Item = &String> {
+        self.iter()
+            .map(|(name, _)| name)
+    }
+
+    fn size(&self) -> usize {
+        self.size()
+    }
+}
+
+impl GetErdData for Relationships {
+    fn get_relationship(
+        &self,
+        source_entity_name: &str,
+        target_entity_name: &str,
+    ) -> Option<&ErdRelationship> {
+        self.get_relationship(source_entity_name, target_entity_name)
+    }
+
+    fn get_source(&self, _entity_name: &str) -> Option<&Source> {
+        None
+    }
+
+    fn iter(&self) -> impl Iterator<Item = &String> {
+        self.iter()
+            .map(|(name, _)| name)
+    }
+
+    fn size(&self) -> usize {
+        self.size()
+    }
+}
+
 impl ErdGraph {
-    pub fn new(erd: &Erd) -> Self {
+    pub fn new<T>(erd: &T) -> Self
+    where 
+        T: GetErdData
+    {
         let mut graph = DiGraph::default();
         let mut node_indices = HashMap::new();
         let mut edge_data: HashMap<_, HashMap<_, _>> = HashMap::new();
 
         // Add entities as nodes
-        for (entity_name, _) in erd.iter() {
+        for entity_name in erd.iter() {
             // TODO: we may not want to add the names as node labels for efficiency
             let node_index = graph.add_node(entity_name.to_string());
             node_indices.insert(entity_name.to_string(), node_index);
@@ -50,7 +114,7 @@ impl ErdGraph {
                     continue; // Skip self-loops
                 }
                 if let Some((weight, constraint)) =
-                    get_edge_data(erd, source_entity_name, target_entity_name)
+                    get_edge_from_data(erd, source_entity_name, target_entity_name)
                 {
                     graph.add_edge(*source_index, *target_index, weight);
                     edge_data
@@ -132,11 +196,15 @@ impl std::fmt::Display for ErdGraph {
     }
 }
 
-fn get_edge_data(
-    erd: &Erd,
+fn get_edge_from_data<T>
+(
+    ed: &T,
     source_entity_name: &str,
     target_entity_name: &str,
-) -> Option<(usize, EdgeData)> {
+) -> Option<(usize, EdgeData)> 
+where 
+    T: GetErdData,
+{
     let get_relationship_weight = |relationship_type, constraint_type| {
         match (relationship_type, constraint_type) {
             // datas should actually be based of cardinality with a large constant factor for
@@ -144,9 +212,9 @@ fn get_edge_data(
             (ConstraintType::Embedded, RelationshipType::OneToOne) => 1,
             (ConstraintType::Embedded, RelationshipType::ManyToOne) => 2,
             (ConstraintType::Embedded, RelationshipType::ManyToMany) => 4,
-            (ConstraintType::Foreign, RelationshipType::OneToOne) => erd.size(),
-            (ConstraintType::Foreign, RelationshipType::ManyToOne) => erd.size() * 2,
-            (ConstraintType::Foreign, RelationshipType::ManyToMany) => erd.size() * 4,
+            (ConstraintType::Foreign, RelationshipType::OneToOne) => ed.size(),
+            (ConstraintType::Foreign, RelationshipType::ManyToOne) => ed.size() * 2,
+            (ConstraintType::Foreign, RelationshipType::ManyToMany) => ed.size() * 4,
         }
     };
     let get_relationship_constraint = |entity_name: &str, relationship: &ErdRelationship| {
@@ -161,10 +229,9 @@ fn get_edge_data(
                 relationship_type: relationship.relationship_type, // Default to ManyToOne if no relationship found
             },
             ConstraintType::Foreign => {
-                let source = erd.get_source(entity_name).expect("Source not found");
                 EdgeData::Foreign {
-                    db: source.db.clone(),
-                    collection: source.collection.clone(),
+                    db: relationship.constraint.db.clone().unwrap(),
+                    collection: relationship.constraint.collection.clone().unwrap(),
                     relationship_type: relationship.relationship_type,
                     foreign_key: relationship.constraint.foreign_key.clone().unwrap(),
                     local_key: relationship.constraint.local_key.clone().unwrap(),
@@ -172,7 +239,7 @@ fn get_edge_data(
             }
         }
     };
-    if let Some(relationship) = erd.get_relationship(source_entity_name, target_entity_name) {
+    if let Some(relationship) = ed.get_relationship(source_entity_name, target_entity_name) {
         Some((
             get_relationship_weight(
                 relationship.constraint.constraint_type,

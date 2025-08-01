@@ -30,6 +30,25 @@ impl Erd {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct Relationships(HashMap<String, HashMap<String, ErdRelationship>>);
+
+impl Relationships {
+    pub fn get_relationship(&self, entity: &str, foreign_entity: &str) -> Option<&ErdRelationship> {
+        self.0
+            .get(entity)
+            .and_then(|rels| rels.get(foreign_entity))
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&String, &HashMap<String, ErdRelationship>)> {
+        self.0.iter()
+    }
+
+    pub fn size(&self) -> usize {
+        self.0.len()
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ErdItem {
     pub source: Source,

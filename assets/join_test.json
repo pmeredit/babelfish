@@ -6,7 +6,11 @@
                 {"$derived": {
                     "entity": "Order",
                     "pipeline": [
-                        {"$lookup": {"from": "orders", "localField": "customer_id", "foreignField": "_id", "as": "Customer.orders"}}
+                        {"$lookup": {
+                            "from": "orders", 
+                            "localField": "customer_id", 
+                            "foreignField": "_id", 
+                            "as": "Customer.orders"}}
                     ]
                 }},
                 {"$left": {

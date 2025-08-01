@@ -1,4 +1,4 @@
-use crate::{erd::Erd, erd_graph::{self, EdgeData, ErdGraph}};
+use crate::{erd::{Relationships}, erd_graph::{GetErdData, EdgeData, ErdGraph}};
 use ast::{
     definitions::{
         visitor::Visitor, Derived, EqualityLookup, Expression, Join, JoinExpression, Lookup, LookupFrom, MatchExpr, MatchExpression, MatchStage, Pipeline, ProjectItem, ProjectStage, Ref, Stage, Unwind, UnwindExpr
@@ -95,10 +95,10 @@ impl Visitor for JoinRewrite {
         match stage {
             Stage::Join(j) => {
                 let erd_json = handle_error!(
-                    std::fs::read_to_string("assets/new_erd.json")
-                        .map_err(|_| Error::CouldNotFindErd("assets/new_erd.json".to_string()))
+                    std::fs::read_to_string("assets/rel.json")
+                        .map_err(|_| Error::CouldNotFindErd("assets/rel.json".to_string()))
                 );
-                let erd: Erd =
+                let erd: Relationships =
                     handle_error!(serde_json::from_str(&erd_json).map_err(Error::CouldNotParseErd));
                 let mut generator = JoinGenerator::new(erd);
                 handle_error!(generator.generate_join(*j));
@@ -125,14 +125,14 @@ impl Visitor for JoinRewrite {
 }
 
 struct JoinGenerator {
-    entities: Erd,
+    entities: Relationships,
     erd_graph: ErdGraph,
     nodes_in_scope: HashSet<NodeIndex>,
     pipeline: Pipeline,
 }
 
 impl JoinGenerator {
-    fn new(entities: Erd) -> Self {
+    fn new(entities: Relationships) -> Self {
         let erd_graph = ErdGraph::new(&entities);
         println!("{}", erd_graph);
         JoinGenerator {
@@ -296,7 +296,7 @@ impl JoinGenerator {
     ) -> Result<()> {
         let root = self.erd_graph
             .get_index(root_entity)
-            .ok_or_else(|| Error::EntityMissingFromErd(root_entity.to_string()))?;
+            .ok_or_else(|| Error::EntityMissingFromErd(root_entity.to_string())).unwrap();
             for arg in args {
                 match arg {
                     Join::Entity(entity) => {
@@ -366,7 +366,7 @@ impl JoinGenerator {
         let root_entity = root_entity.ok_or(Error::NoRoot)?;
         let root = self.erd_graph
             .get_index(&root_entity)
-            .ok_or_else(|| Error::EntityMissingFromErd(root_entity.clone()))?;
+            .ok_or_else(|| Error::EntityMissingFromErd(root_entity.clone())).unwrap();
         self.pipeline
             .push(self.generate_for_root_source(root_entity.as_str())?);
         self.nodes_in_scope.insert(root);
@@ -380,84 +380,33 @@ impl JoinGenerator {
     }
 
     fn generate_for_root_source(&self, entity: &str) -> Result<Stage> {
-        let source = self
-            .entities
-            .get_source(entity)
-            .ok_or_else(|| Error::EntityMissingFromErd(entity.to_string()))?;
-        if source.target_path.is_none() {
-            return Ok(Stage::Project(ProjectStage {
+        // removing source from erds? Always assume root is ROOT of whatever we are running on?
+        //let source = self
+        //    .entities
+        //    .get_source(entity)
+        //    .ok_or_else(|| Error::EntityMissingFromErd(entity.to_string())).unwrap();
+        //if source.target_path.is_none() {
+        //    return 
+            Ok(Stage::Project(ProjectStage {
                 items: map! {
                     entity.to_string() => ProjectItem::Assignment(Expression::Ref(Ref::VariableRef("ROOT".to_string()))),
                     "_id".to_string() => ProjectItem::Exclusion,
                 },
-            }));
-        }
-        Ok(Stage::SubPipeline(Pipeline {
-            pipeline: vec![
-                Stage::Unwind(Unwind::FieldPath(Expression::Ref(Ref::FieldRef(
-                    source.target_path.as_ref().unwrap().to_string(),
-                )))),
-                Stage::Project(ProjectStage {
-                    items: map! {
-                        entity.to_string() => ProjectItem::Assignment(Expression::Ref(Ref::FieldRef(source.target_path.as_ref().unwrap().to_string()))),
-                        "_id".to_string() => ProjectItem::Exclusion,
-                    },
-                }),
-            ],
-        }))
-    }
-
-    fn generate_for_foreign_source(&self, root_entity: &str, target_entity: &str) -> Result<Stage> {
-        let source = self
-            .entities
-            .get_source(target_entity)
-            .ok_or_else(|| Error::EntityMissingFromErd(target_entity.to_string()))?;
-        let target_primary_key = self
-            .entities
-            .get_primary_key(target_entity)
-            .ok_or_else(|| Error::EntityMissingFromErd(target_entity.to_string()))?;
-        let root_primary_key = self
-            .entities
-            .get_primary_key(root_entity)
-            .ok_or_else(|| Error::EntityMissingFromErd(root_entity.to_string()))?;
-        if source.target_path.is_none() {
-            return Ok(Stage::SubPipeline(Pipeline {
-                pipeline: vec![
-                    Stage::Lookup(Lookup::Equality(EqualityLookup {
-                        from: LookupFrom::Collection(source.collection.clone()),
-                        local_field: format!("{}.{}", root_entity, root_primary_key),
-                        foreign_field: target_primary_key.to_string(),
-                        as_var: target_entity.to_string(),
-                    })),
-                    Stage::Unwind(Unwind::FieldPath(Expression::Ref(Ref::FieldRef(
-                        target_entity.to_string(),
-                    )))),
-                ],
-            }));
-        }
-        let unwind_path = format!("{}.{}", target_entity, source.target_path.as_ref().unwrap());
-        Ok(Stage::SubPipeline(Pipeline {
-            pipeline: vec![
-                Stage::Lookup(Lookup::Equality(EqualityLookup {
-                    from: LookupFrom::Collection(source.collection.clone()),
-                    local_field: format!("{}.{}", root_entity, root_primary_key),
-                    foreign_field: target_primary_key.to_string(),
-                    as_var: target_entity.to_string(),
-                })),
-                Stage::Unwind(Unwind::FieldPath(Expression::Ref(Ref::FieldRef(
-                    target_entity.to_string(),
-                )))),
-                Stage::Unwind(Unwind::FieldPath(Expression::Ref(Ref::FieldRef(
-                    unwind_path.clone(),
-                )))),
-                Stage::Project(ProjectStage {
-                    items: map! {
-                        target_entity.to_string() => ProjectItem::Assignment(Expression::Ref(Ref::FieldRef(unwind_path))),
-                        "_id".to_string() => ProjectItem::Exclusion,
-                    },
-                }),
-            ],
-        }))
+            }))
+        //}
+//        Ok(Stage::SubPipeline(Pipeline {
+//            pipeline: vec![
+//                Stage::Unwind(Unwind::FieldPath(Expression::Ref(Ref::FieldRef(
+//                    source.target_path.as_ref().unwrap().to_string(),
+//                )))),
+//                Stage::Project(ProjectStage {
+//                    items: map! {
+//                        entity.to_string() => ProjectItem::Assignment(Expression::Ref(Ref::FieldRef(source.target_path.as_ref().unwrap().to_string()))),
+//                        "_id".to_string() => ProjectItem::Exclusion,
+//                    },
+//                }),
+//            ],
+//        }))
     }
 
     fn generate_for_embedded(
