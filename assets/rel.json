@@ -76,6 +76,7 @@
             "description": "Order contains multiple order items, embedded within the order document using the canonical OrderItem structure.",
             "constraint": {
                  "collection": "order_items",
+                 "db": "ecommerce_db",
                  "constraintType": "foreign",
                  "localKey": "_id",
                  "foreignKey": "order_ref_id",
