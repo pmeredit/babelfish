@@ -32,20 +32,12 @@ This abstraction provides several benefits:
 
 ### Schema Definition
 
-The core of the system is the schema definition (new_schema.json), which contains:
-
-- **Entities**: Represent business objects like Customer, Account, Order, Invoice, etc.
-- **JSON Schema**: Defines the expected structure and validation rules for each entity
-- **References**: Define relationships between entities
+The core of the system is the entity relationship definition (rel.json), which contains 
+- **A mapping from Source Entity to Target Entity relationship with a storage constraint for that relationship
 - **Storage Constraints**: Specify how data should be physically stored:
   - **Embedding**: Embed data from one entity into another
   - **Reference**: Store references to other documents
   - **Bucket**: Group child documents into buckets within a parent
-
-The schema now uses MongoDB's JSON Schema format, providing better integration with MongoDB's validation capabilities.
-
-# Note: The $assemble operator has been deprecated and replaced with $conjure and $join operators.
-The new operators provide more intuitive and powerful ways to express multi-entity queries with the ERD format specified in assets/new_erd.json.
 
 ### Storage Constraint Types
 
@@ -81,27 +73,10 @@ Example configuration:
   "constraintType": "reference",
   "consistency": "strong",
   "direction": "child",
-  "targetPath": "customerId",
+  "localKey": "customerId",
+  "foreignKey": "_id",
   "extendedProperties": {
     "blueprint": "sourceId#ISOTIME"
-  }
-}
-```
-
-#### 3. Bucket Constraints
-
-Bucket constraints allow grouping multiple child documents into arrays within a parent document, based on time or volume dimensions.
-
-Example configuration:
-```json
-{
-  "constraintType": "bucket",
-  "consistency": "strong",
-  "direction": "child",
-  "targetPath": "events",
-  "extendedProperties": {
-    "dimension": "time",
-    "size": 10
   }
 }
 ```
@@ -127,6 +102,8 @@ Key features of the join format:
 - Traverses entity relationships defined in the ERD
 - Filters use MongoDB's expression syntax
 - Can be combined with other MongoDB pipeline stages like `$limit` and `$skip`
+- `$join` can also contain a `$derived` entity-named pipeline, this allows for generating entities
+  on the fly without modifying the erd.
 
 ## Project Structure
 
@@ -146,6 +123,7 @@ Babelfish is a Rust workspace consisting of multiple crates:
 
 ## Installation
 
+<<<<<<< HEAD
 ### Prerequisites
 
 - Rust toolchain (1.70 or higher)
@@ -165,9 +143,6 @@ cargo build --release
 cargo run --bin babelfish-cli -- [OPTIONS]
 ```
 
-
-
-
 ### Running the Tool
 
 The CLI tool supports several commands for different operations:
@@ -183,6 +158,7 @@ cargo run --bin babelfish-cli -- -e <erd_file>
 # Example:
 cargo run --bin babelfish-cli -- -e assets/erd.json
 
+<<<<<<< HEAD
 # Parse and validate a new format ERD file
 cargo run --bin babelfish-cli -- -n <nerd_file>
 # Example:
@@ -201,65 +177,70 @@ cargo run --bin babelfish-cli -- -m assets/match_move.json
 - `-n, --nerd-file <FILE>`: Parse and validate a new ERD file (new schema format)
 - `-m, --match-move <FILE>`: Apply match movement optimization to a pipeline
 
-## Schema and Assembly Examples
-
-### Schema Example (MongoDB JSON Schema Format)
+## Schema and Join Examples
 
 ```json
-{
-  "schemaName": "company_erd",
-  "entities": {
-    "Account": {
-      "db": "company",
-      "collection": "Account",
-      "primaryKey": "_id",
-      "jsonSchema": {
-        "bsonType": "object",
-        "properties": {
-          "_id": { "bsonType": "objectId" },
-          "accountId": { "bsonType": "string" },
-          "accountName": { "bsonType": "string" },
-          "customerId": { "bsonType": "objectId" }
-        },
-        "references": {
-          "customerId": {
-            "entity": "Customer",
-            "field": "_id",
-            "relationshipType": "many-one",
-            "storageConstraints": [
-              {
-                "constraintType": "embedded",
-                "consistency": "strong",
-                "direction": "child",
-                "targetPath": "contact",
-                "projection": ["customerName", "customerAddress"]
-              }
-            ]
-          }
-        },
-        "required": ["_id", "accountId", "accountName", "customerId"],
-        "additionalProperties": false
-      }
-    },
-    "Customer": {
-      "db": "company",
-      "collection": "Customer",
-      "primaryKey": "_id",
-      "jsonSchema": {
-        "bsonType": "object",
-        "properties": {
-          "_id": { "bsonType": "objectId" },
-          "customerName": { "bsonType": "string" },
-          "customerAddress": { "bsonType": "string" }
-        },
-        "required": ["_id", "customerName", "customerAddress"],
-        "additionalProperties": false
-      }
-    }
-    // Other entities follow the same pattern...
-  }
-}
+  "Order": {
+       "OrderItem": {
+            "relationshipType": "many-to-one",
+            "description": "Order contains multiple order items, embedded within the order document using the canonical OrderItem structure.",
+            "constraint": {
+                 "collection": "order_items",
+                 "db": "ecommerce_db",
+                 "constraintType": "foreign",
+                 "localKey": "_id",
+                 "foreignKey": "order_ref_id",
+                 "direction": "child",
+                 "projection": [
+                      "product_ref_id",
+                      "product_name_snapshot",
+                      "quantity",
+                      "price_at_purchase",
+                      "original_product_id"
+                 ]
+            },
+            "consistency": "strong"
+       },
+       "ShippingAddress": {
+            "relationshipType": "one-to-one",
+            "description": "Order has a shipping address, embedded as a snapshot using the canonical Address structure.",
+            "constraint": {
+                 "constraintType": "embedded",
+                 "direction": "child",
+                 "targetPath": "shipping_address",
+                 "projection": [
+                      "street_address",
+                      "city",
+                      "state",
+                      "postal_code",
+                      "country"
+                 ]
+            },
+            "consistency": "strong"
+       },
+       "BillingAddress": {  
+            "relationshipType": "one-to-one",
+            "description": "Order has a billing address, embedded as a snapshot using the canonical Address structure.",
+            "constraint": {
+                 "constraintType": "embedded",
+                 "direction": "child",
+                 "targetPath": "billing_address",
+                 "projection": [
+                      "street_address",
+                      "city",
+                      "state",
+                      "postal_code",
+                      "country"
+                 ]
+            },
+            "consistency": "strong"
+       }
+   }
 ```
+
+This shows the relationships from the Order entity to the OrderItems, ShippingAddress, and
+BillingAddress entities.
+
 
 ### Join Example
 
@@ -449,30 +430,6 @@ The `$join` operator supports multiple join types for more complex scenarios:
 }
 ```
 
-### ERD-Based Relationship Definition
-
-Relationships between entities are defined in the ERD file (`assets/new_erd.json`):
-
-```json
-{
-  "Customer": {
-    "relationships": [
-      {
-        "foreignEntity": "Order",
-        "relationshipType": "one-to-many",
-        "constraint": {
-          "constraintType": "foreign",
-          "db": "ecommerce_db",
-          "collection": "orders",
-          "localKey": "_id",
-          "foreignKey": "customer_ref_id"
-        }
-      }
-    ]
-  }
-}
-```
-
 ### Constraint Types
 
 The system supports different constraint types for joining data:
@@ -533,70 +490,6 @@ The `$join` operator can be used as part of a larger MongoDB aggregation pipelin
 ```
 
 This enables combining the join capabilities with MongoDB's rich aggregation framework.
-
-## Migration from $assemble
-
-The `$assemble` operator has been deprecated in favor of two new, more specialized operators:
-
-### 1. Use `$conjure` for Simple Field Projections
-
-If you were using `$assemble` to join entities and project specific fields, migrate to `$conjure`:
-
-**Old $assemble syntax:**
-```json
-{
-  "$assemble": {
-    "entities": ["Customer", "Order"],
-    "fields": ["Customer.name", "Order.total"]
-  }
-}
-```
-
-**New $conjure syntax:**
-```json
-{
-  "$conjure": ["Customer.name", "Order.total"]
-}
-```
-
-### 2. Use `$join` for Complex Joins with Conditions
-
-If you were using `$assemble` with join conditions or need left joins, migrate to `$join`:
-
-**Old $assemble syntax:**
-```json
-{
-  "$assemble": {
-    "type": "inner",
-    "entities": ["Customer", "Order"],
-    "condition": {"$gt": ["$Order.amount", 100]}
-  }
-}
-```
-
-**New $join syntax:**
-```json
-{
-  "$join": {
-    "$inner": {
-      "args": ["Customer", "Order"],
-      "condition": {"$gt": ["$Order.amount", 100]}
-    }
-  }
-}
-```
-
-### Key Differences
-
-1. **Clearer Intent**: `$conjure` is for simple projections, `$join` is for complex join operations
-2. **Better Performance**: The new operators generate more optimized pipelines
-3. **Enhanced Flexibility**: `$join` supports multiple join types (inner, left) with full MongoDB expression support
-4. **Simplified Syntax**: `$conjure` reduces boilerplate for common use cases
-
-### Backward Compatibility
-
-While `$assemble` is deprecated, it may still be supported for backward compatibility. However, we strongly recommend migrating to the new operators for better performance and maintainability.
-
 ## Key Implementation Details
 
 ### Error Handling
